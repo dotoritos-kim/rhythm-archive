@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  mariadb:
+    build:
+      context: .
+      dockerfile: Dockerfile.mariadb
+    container_name: rhythm-mariadb
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: rhythm_archive
+      MYSQL_USER: rhythm
+      MYSQL_PASSWORD: rhythm123
+    ports:
+      - '3306:3306'
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --innodb-ft-min-token-size=1 --innodb-ft-enable-stopword=0
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: rhythm-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mariadb
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: 123456
+    ports:
+      - '8080:80'
+    depends_on:
+      - mariadb
+
+volumes:
+  mariadb_data:

@@ -1,0 +1,1015 @@
+{
+  "openapi": "3.1.0",
+  "servers": [{ "url": "http://localhost:3000", "description": "개발 서버" }],
+  "info": {
+    "title": "Rhythm Archive API",
+    "description": "# 주요 사용자 시나리오\n1. 회원가입 및 로그인\n  - /auth/register → /auth/login → /auth/me\n2. 곡 검색 및 상세 조회\n  - /songs/search → /songs/{id}\n3. 즐겨찾기 관리\n  - /favorites (POST/GET) → /favorites/{listId}\n4. CMS 게시글 관리\n  - /cms/posts (POST/GET/PATCH/DELETE)\n5. 통합 검색\n  - /search\n\n이 파일은 커스텀 Swagger 문서로, 자동 생성본(generated/swagger-auto.json)과 분리되어 관리됩니다.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Rhythm Archive Team",
+      "email": "support@rhythm-archive.com"
+    },
+    "license": { "name": "UNLICENSED" }
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "tags": ["health"],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": { "schema": { "type": "string" } }
+            }
+          }
+        },
+        "x-samchon-accessor": ["getHello"],
+        "x-samchon-controller": "AppController"
+      }
+    },
+    "/game-data": {
+      "post": {
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/GameDataDto" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "game": {},
+                    "songs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "song": {},
+                          "composers": { "type": "array", "items": {} },
+                          "gameVersions": { "type": "array", "items": {} },
+                          "tags": { "type": "array", "items": {} }
+                        },
+                        "required": [
+                          "song",
+                          "composers",
+                          "gameVersions",
+                          "tags"
+                        ]
+                      }
+                    },
+                    "composers": { "type": "array", "items": {} },
+                    "dlcs": { "type": "array", "items": {} },
+                    "charts": { "type": "array", "items": {} }
+                  },
+                  "required": ["game", "songs", "composers", "dlcs", "charts"]
+                }
+              }
+            }
+          }
+        },
+        "x-samchon-accessor": ["game_data", "addGameData"],
+        "x-samchon-controller": "GameDataController"
+      }
+    },
+    "/game-data/{gameName}": {
+      "get": {
+        "tags": [],
+        "parameters": [
+          {
+            "name": "gameName",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/dlcsidstringreleaseDateDatenullextrastringnullcreatedAtDateupdatedAtDatedeletedAtDatenullgameIdstringdlcNamestringsongGameVersions(......)..."
+                }
+              }
+            }
+          }
+        },
+        "x-samchon-accessor": ["game_data", "getGameData"],
+        "x-samchon-controller": "GameDataController"
+      }
+    },
+    "/songs": {
+      "post": {
+        "tags": ["songs"],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateSongDto" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SongResponseDto" }
+              }
+            }
+          }
+        },
+        "x-samchon-accessor": ["songs", "create"],
+        "x-samchon-controller": "SongsController"
+      },
+      "get": {
+        "tags": ["songs"],
+        "parameters": [
+          {
+            "name": "includeRelations",
+            "in": "query",
+            "schema": { "type": "string" },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SongResponseDto"
+                      }
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SongWithRelationsDto"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-samchon-accessor": ["songs", "findAll"],
+        "x-samchon-controller": "SongsController"
+      }
+    },
+    "/songs/search": {
+      "get": {
+        "tags": ["songs"],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/SongResponseDto" }
+                }
+              }
+            }
+          }
+        },
+        "x-samchon-accessor": ["songs", "search"],
+        "x-samchon-controller": "SongsController"
+      }
+    },
+    "/songs/title/{title}": {
+      "get": {
+        "tags": ["songs"],
+        "parameters": [
+          {
+            "name": "title",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          },
+          {
+            "name": "includeRelations",
+            "in": "query",
+            "schema": { "type": "string" },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/SongResponseDto" },
+                    { "$ref": "#/components/schemas/SongWithRelationsDto" }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-samchon-accessor": ["songs", "title", "findByTitle"],
+        "x-samchon-controller": "SongsController"
+      }
+    },
+    "/songs/{id}": {
+      "get": {
+        "tags": ["songs"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          },
+          {
+            "name": "includeRelations",
+            "in": "query",
+            "schema": { "type": "string" },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/SongResponseDto" },
+                    { "$ref": "#/components/schemas/SongWithRelationsDto" }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-samchon-accessor": ["songs", "findOne"],
+        "x-samchon-controller": "SongsController"
+      },
+      "patch": {
+        "tags": ["songs"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateSongDto" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SongResponseDto" }
+              }
+            }
+          }
+        },
+        "x-samchon-accessor": ["songs", "update"],
+        "x-samchon-controller": "SongsController"
+      },
+      "delete": {
+        "tags": ["songs"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": { "description": "", "content": { "application/json": {} } }
+        },
+        "x-samchon-accessor": ["songs", "remove"],
+        "x-samchon-controller": "SongsController"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "GameDataDto": {
+        "type": "object",
+        "properties": {
+          "game": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "releaseDate": { "type": "string" },
+              "publisher": { "type": "string" },
+              "extra": {}
+            },
+            "required": ["name"]
+          },
+          "songs": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SongDataDto" }
+          },
+          "courses": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/CourseDataDto" }
+          }
+        },
+        "required": ["game", "songs"]
+      },
+      "SongDataDto": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "originalTitle": { "type": "string" },
+          "songInfo": {
+            "type": "object",
+            "properties": {
+              "bpm": { "type": "number" },
+              "beat": { "type": "string" },
+              "lengthSec": { "type": "number" },
+              "extra": {}
+            },
+            "required": []
+          },
+          "composers": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ComposerDataDto" }
+          },
+          "gameVersions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/GameVersionDataDto" }
+          },
+          "tags": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["title", "gameVersions"]
+      },
+      "ComposerDataDto": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "companyName": { "type": "string" },
+          "extra": {}
+        },
+        "required": ["name"]
+      },
+      "GameVersionDataDto": {
+        "type": "object",
+        "properties": {
+          "inGameTitle": { "type": "string" },
+          "bpmOverride": { "type": "number" },
+          "lengthSec": { "type": "number" },
+          "arrangement": { "type": "string" },
+          "firstVersion": { "type": "string" },
+          "firstDate": { "type": "string" },
+          "extra": {},
+          "charts": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ChartDataDto" }
+          },
+          "dlcName": { "type": "string" },
+          "dlcReleaseDate": { "type": "string" }
+        },
+        "required": ["charts"]
+      },
+      "ChartDataDto": {
+        "type": "object",
+        "properties": {
+          "difficultyName": { "type": "string" },
+          "level": { "type": "number" },
+          "noteCount": { "type": "number" },
+          "chartType": { "type": "string" },
+          "extra": {}
+        },
+        "required": ["difficultyName", "level"]
+      },
+      "CourseDataDto": {
+        "type": "object",
+        "properties": {
+          "courseName": { "type": "string" },
+          "difficulty": { "type": "string" },
+          "dlcName": { "type": "string" },
+          "courseEntries": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/CourseEntryDataDto" }
+          },
+          "extra": {}
+        },
+        "required": ["courseName", "courseEntries"]
+      },
+      "CourseEntryDataDto": {
+        "type": "object",
+        "properties": {
+          "songTitle": { "type": "string" },
+          "difficultyName": { "type": "string" },
+          "chartType": { "type": "string" },
+          "position": { "type": "number" },
+          "extra": {}
+        },
+        "required": ["songTitle", "difficultyName", "position"]
+      },
+      "dlcsidstringreleaseDateDatenullextrastringnullcreatedAtDateupdatedAtDatedeletedAtDatenullgameIdstringdlcNamestringsongGameVersions(......)...": {
+        "type": "object",
+        "properties": {
+          "dlcs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "releaseDate": {
+                  "oneOf": [
+                    { "type": "null" },
+                    { "type": "string", "format": "date-time" }
+                  ]
+                },
+                "extra": {
+                  "oneOf": [{ "type": "null" }, { "type": "string" }]
+                },
+                "createdAt": { "type": "string", "format": "date-time" },
+                "updatedAt": { "type": "string", "format": "date-time" },
+                "deletedAt": {
+                  "oneOf": [
+                    { "type": "null" },
+                    { "type": "string", "format": "date-time" }
+                  ]
+                },
+                "gameId": { "type": "string" },
+                "dlcName": { "type": "string" }
+              },
+              "required": [
+                "id",
+                "releaseDate",
+                "extra",
+                "createdAt",
+                "updatedAt",
+                "deletedAt",
+                "gameId",
+                "dlcName"
+              ]
+            }
+          },
+          "songGameVersions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/songsongInfosidstringextrastringnullcreatedAtDateupdatedAtDatedeletedAtDatenullsongIdstringlengthSecnumbernullbpmDecimalnullbeatstringnullnullsongComposers(......)songTags(......)...dlc...nul..."
+            }
+          },
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "releaseDate": {
+            "oneOf": [
+              { "type": "null" },
+              { "type": "string", "format": "date-time" }
+            ]
+          },
+          "publisher": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+          "extra": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": {
+            "oneOf": [
+              { "type": "null" },
+              { "type": "string", "format": "date-time" }
+            ]
+          }
+        },
+        "required": [
+          "dlcs",
+          "songGameVersions",
+          "id",
+          "name",
+          "releaseDate",
+          "publisher",
+          "extra",
+          "createdAt",
+          "updatedAt",
+          "deletedAt"
+        ]
+      },
+      "songsongInfosidstringextrastringnullcreatedAtDateupdatedAtDatedeletedAtDatenullsongIdstringlengthSecnumbernullbpmDecimalnullbeatstringnullnullsongComposers(......)songTags(......)...dlc...nul...": {
+        "type": "object",
+        "properties": {
+          "song": {
+            "$ref": "#/components/schemas/songInfosidstringextrastringnullcreatedAtDateupdatedAtDatedeletedAtDatenullsongIdstringlengthSecnumbernullbpmDecimalnullbeatstringnullnullsongComposers(......)songTags(......)..."
+          },
+          "dlc": {
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "releaseDate": {
+                    "oneOf": [
+                      { "type": "null" },
+                      { "type": "string", "format": "date-time" }
+                    ]
+                  },
+                  "extra": {
+                    "oneOf": [{ "type": "null" }, { "type": "string" }]
+                  },
+                  "createdAt": { "type": "string", "format": "date-time" },
+                  "updatedAt": { "type": "string", "format": "date-time" },
+                  "deletedAt": {
+                    "oneOf": [
+                      { "type": "null" },
+                      { "type": "string", "format": "date-time" }
+                    ]
+                  },
+                  "gameId": { "type": "string" },
+                  "dlcName": { "type": "string" }
+                },
+                "required": [
+                  "id",
+                  "releaseDate",
+                  "extra",
+                  "createdAt",
+                  "updatedAt",
+                  "deletedAt",
+                  "gameId",
+                  "dlcName"
+                ]
+              }
+            ]
+          },
+          "charts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "extra": {
+                  "oneOf": [{ "type": "null" }, { "type": "string" }]
+                },
+                "createdAt": { "type": "string", "format": "date-time" },
+                "updatedAt": { "type": "string", "format": "date-time" },
+                "deletedAt": {
+                  "oneOf": [
+                    { "type": "null" },
+                    { "type": "string", "format": "date-time" }
+                  ]
+                },
+                "sgvId": { "type": "string" },
+                "difficultyName": { "type": "string" },
+                "level": { "type": "string" },
+                "noteCount": {
+                  "oneOf": [{ "type": "null" }, { "type": "number" }]
+                },
+                "chartType": {
+                  "oneOf": [{ "type": "null" }, { "type": "string" }]
+                }
+              },
+              "required": [
+                "id",
+                "extra",
+                "createdAt",
+                "updatedAt",
+                "deletedAt",
+                "sgvId",
+                "difficultyName",
+                "level",
+                "noteCount",
+                "chartType"
+              ]
+            }
+          },
+          "id": { "type": "string" },
+          "extra": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": {
+            "oneOf": [
+              { "type": "null" },
+              { "type": "string", "format": "date-time" }
+            ]
+          },
+          "gameId": { "type": "string" },
+          "songId": { "type": "string" },
+          "dlcId": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+          "inGameTitle": {
+            "oneOf": [{ "type": "null" }, { "type": "string" }]
+          },
+          "bpmOverride": {
+            "oneOf": [{ "type": "null" }, { "type": "string" }]
+          },
+          "lengthSec": { "oneOf": [{ "type": "null" }, { "type": "number" }] },
+          "arrangement": {
+            "oneOf": [{ "type": "null" }, { "type": "string" }]
+          },
+          "firstVersion": {
+            "oneOf": [{ "type": "null" }, { "type": "string" }]
+          },
+          "firstDate": {
+            "oneOf": [
+              { "type": "null" },
+              { "type": "string", "format": "date-time" }
+            ]
+          }
+        },
+        "required": [
+          "song",
+          "dlc",
+          "charts",
+          "id",
+          "extra",
+          "createdAt",
+          "updatedAt",
+          "deletedAt",
+          "gameId",
+          "songId",
+          "dlcId",
+          "inGameTitle",
+          "bpmOverride",
+          "lengthSec",
+          "arrangement",
+          "firstVersion",
+          "firstDate"
+        ]
+      },
+      "songInfosidstringextrastringnullcreatedAtDateupdatedAtDatedeletedAtDatenullsongIdstringlengthSecnumbernullbpmDecimalnullbeatstringnullnullsongComposers(......)songTags(......)...": {
+        "type": "object",
+        "properties": {
+          "songInfos": {
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "extra": {
+                    "oneOf": [{ "type": "null" }, { "type": "string" }]
+                  },
+                  "createdAt": { "type": "string", "format": "date-time" },
+                  "updatedAt": { "type": "string", "format": "date-time" },
+                  "deletedAt": {
+                    "oneOf": [
+                      { "type": "null" },
+                      { "type": "string", "format": "date-time" }
+                    ]
+                  },
+                  "songId": { "type": "string" },
+                  "lengthSec": {
+                    "oneOf": [{ "type": "null" }, { "type": "number" }]
+                  },
+                  "bpm": {
+                    "oneOf": [{ "type": "null" }, { "type": "string" }]
+                  },
+                  "beat": {
+                    "oneOf": [{ "type": "null" }, { "type": "string" }]
+                  }
+                },
+                "required": [
+                  "id",
+                  "extra",
+                  "createdAt",
+                  "updatedAt",
+                  "deletedAt",
+                  "songId",
+                  "lengthSec",
+                  "bpm",
+                  "beat"
+                ]
+              }
+            ]
+          },
+          "songComposers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/composeridstringnamestringextrastringnullcreatedAtDateupdatedAtDatedeletedAtDatenullcompanyNamestringnullidstringcreatedAtDateupdatedAtDatedeletedAtDatenullsongIdstringcomposerIdstring"
+            }
+          },
+          "songTags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/tagidstringnamestringcreatedAtDateupdatedAtDatedeletedAtDatenullidstringcreatedAtDateupdatedAtDatedeletedAtDatenullsongIdstringtagIdstring"
+            }
+          },
+          "id": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": {
+            "oneOf": [
+              { "type": "null" },
+              { "type": "string", "format": "date-time" }
+            ]
+          },
+          "title": { "type": "string" },
+          "originalTitle": {
+            "oneOf": [{ "type": "null" }, { "type": "string" }]
+          }
+        },
+        "required": [
+          "songInfos",
+          "songComposers",
+          "songTags",
+          "id",
+          "createdAt",
+          "updatedAt",
+          "deletedAt",
+          "title",
+          "originalTitle"
+        ]
+      },
+      "composeridstringnamestringextrastringnullcreatedAtDateupdatedAtDatedeletedAtDatenullcompanyNamestringnullidstringcreatedAtDateupdatedAtDatedeletedAtDatenullsongIdstringcomposerIdstring": {
+        "type": "object",
+        "properties": {
+          "composer": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "extra": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+              "createdAt": { "type": "string", "format": "date-time" },
+              "updatedAt": { "type": "string", "format": "date-time" },
+              "deletedAt": {
+                "oneOf": [
+                  { "type": "null" },
+                  { "type": "string", "format": "date-time" }
+                ]
+              },
+              "companyName": {
+                "oneOf": [{ "type": "null" }, { "type": "string" }]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "extra",
+              "createdAt",
+              "updatedAt",
+              "deletedAt",
+              "companyName"
+            ]
+          },
+          "id": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": {
+            "oneOf": [
+              { "type": "null" },
+              { "type": "string", "format": "date-time" }
+            ]
+          },
+          "songId": { "type": "string" },
+          "composerId": { "type": "string" }
+        },
+        "required": [
+          "composer",
+          "id",
+          "createdAt",
+          "updatedAt",
+          "deletedAt",
+          "songId",
+          "composerId"
+        ]
+      },
+      "tagidstringnamestringcreatedAtDateupdatedAtDatedeletedAtDatenullidstringcreatedAtDateupdatedAtDatedeletedAtDatenullsongIdstringtagIdstring": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "createdAt": { "type": "string", "format": "date-time" },
+              "updatedAt": { "type": "string", "format": "date-time" },
+              "deletedAt": {
+                "oneOf": [
+                  { "type": "null" },
+                  { "type": "string", "format": "date-time" }
+                ]
+              }
+            },
+            "required": ["id", "name", "createdAt", "updatedAt", "deletedAt"]
+          },
+          "id": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": {
+            "oneOf": [
+              { "type": "null" },
+              { "type": "string", "format": "date-time" }
+            ]
+          },
+          "songId": { "type": "string" },
+          "tagId": { "type": "string" }
+        },
+        "required": [
+          "tag",
+          "id",
+          "createdAt",
+          "updatedAt",
+          "deletedAt",
+          "songId",
+          "tagId"
+        ]
+      },
+      "SongResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "originalTitle": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "title", "createdAt", "updatedAt"]
+      },
+      "CreateSongDto": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "originalTitle": { "type": "string" }
+        },
+        "required": ["title"]
+      },
+      "SongWithRelationsDto": {
+        "type": "object",
+        "properties": {
+          "songInfos": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SongInfoResponseDto" }
+          },
+          "songComposers": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SongComposerResponseDto" }
+          },
+          "songGameVersions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SongGameVersionResponseDto"
+            }
+          },
+          "songTags": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SongTagResponseDto" }
+          },
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "originalTitle": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "title", "createdAt", "updatedAt"]
+      },
+      "SongInfoResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "songId": { "type": "string" },
+          "bpm": { "type": "number" },
+          "beat": { "type": "string" },
+          "lengthSec": { "type": "number" },
+          "extra": {},
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "songId", "createdAt", "updatedAt"]
+      },
+      "SongComposerResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "songId": { "type": "string" },
+          "composerId": { "type": "string" },
+          "composer": { "$ref": "#/components/schemas/ComposerResponseDto" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "songId", "composerId", "createdAt", "updatedAt"]
+      },
+      "ComposerResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "companyName": { "type": "string" },
+          "extra": {},
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "name", "createdAt", "updatedAt"]
+      },
+      "SongGameVersionResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "songId": { "type": "string" },
+          "gameId": { "type": "string" },
+          "dlcId": { "type": "string" },
+          "inGameTitle": { "type": "string" },
+          "bpmOverride": { "type": "number" },
+          "lengthSec": { "type": "number" },
+          "arrangement": { "type": "string" },
+          "firstVersion": { "type": "string" },
+          "firstDate": { "type": "string", "format": "date-time" },
+          "extra": {},
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": { "type": "string", "format": "date-time" },
+          "game": { "$ref": "#/components/schemas/GameResponseDto" },
+          "dlc": { "$ref": "#/components/schemas/DlcResponseDto" }
+        },
+        "required": ["id", "songId", "gameId", "createdAt", "updatedAt"]
+      },
+      "GameResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "releaseDate": { "type": "string", "format": "date-time" },
+          "publisher": { "type": "string" },
+          "extra": {},
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "name", "createdAt", "updatedAt"]
+      },
+      "DlcResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "gameId": { "type": "string" },
+          "dlcName": { "type": "string" },
+          "releaseDate": { "type": "string", "format": "date-time" },
+          "extra": {},
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "gameId", "dlcName", "createdAt", "updatedAt"]
+      },
+      "SongTagResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "songId": { "type": "string" },
+          "tagId": { "type": "string" },
+          "tag": { "$ref": "#/components/schemas/TagResponseDto" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "songId", "tagId", "createdAt", "updatedAt"]
+      },
+      "TagResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "name", "createdAt", "updatedAt"]
+      },
+      "UpdateSongDto": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "originalTitle": { "type": "string" }
+        },
+        "required": []
+      }
+    },
+    "securitySchemes": { "bearer": { "type": "http", "scheme": "bearer" } }
+  },
+  "tags": [{ "name": "health" }, { "name": "songs" }],
+  "x-samchon-emended-v4": true
+}
