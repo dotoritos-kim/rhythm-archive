@@ -102,12 +102,15 @@ steps:
     timeoutInSeconds: 1200
     command: |
       cd ${OCI_PRIMARY_SOURCE_DIR}
+      echo "Clearing any cached build context..."
+      docker system prune -f
       echo "Checking build context..."
       echo "Current directory: $(pwd)"
       echo "Directory contents: $(ls -la)"
       echo "Prisma directory exists: $(test -d prisma && echo 'Yes' || echo 'No')"
+      echo "Prisma directory contents: $(ls -la prisma/ 2>/dev/null || echo 'Prisma directory not found')"
       echo "Building Docker image..."
-      docker build --pull --rm -t new-generated-image . --build-arg BUILDKIT_INLINE_CACHE=1
+      docker build --pull --rm --no-cache -t new-generated-image .
       if [ $? -eq 0 ]; then
         echo "Docker build successful"
         docker tag new-generated-image $IMAGE_PATH:$TAG
