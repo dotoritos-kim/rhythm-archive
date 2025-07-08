@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rhythm-archive-ingress
+  namespace: rhythm-archive
+  annotations:
+    kubernetes.io/ingress.class: 'oci'
+    oci.oraclecloud.com/load-balancer-shape: 'flexible'
+    oci.oraclecloud.com/load-balancer-shape-flex-min: '10'
+    oci.oraclecloud.com/load-balancer-shape-flex-max: '100'
+    oci.oraclecloud.com/ssl-termination: 'true'
+    cert-manager.io/cluster-issuer: 'letsencrypt-prod'
+spec:
+  tls:
+    - hosts:
+        - rhythm-archive.your-domain.com
+      secretName: rhythm-archive-tls
+  rules:
+    - host: rhythm-archive.your-domain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rhythm-archive-service
+                port:
+                  number: 80

@@ -1,0 +1,90 @@
+version: 0.1
+component: deploy
+timeoutInSeconds: 6000
+runAs: root
+shell: bash
+env:
+  variables:
+    defaultAppName: 'rhythm-archive'
+    defaultContextPath: '/'
+  vaultVariables:
+  exportedVariables:
+    - APP_NAME
+    - CONTEXT_PATH
+
+inputArtifacts:
+  - name: output-image
+    type: DOCKER_IMAGE
+  - name: output-oci-oke-deployment
+    type: GENERIC_ARTIFACT
+
+outputArtifacts:
+
+steps:
+  - type: Command
+    name: 'Init exportedVariables'
+    timeoutInSeconds: 30
+    command: |
+      APP_NAME=$defaultAppName
+      CONTEXT_PATH=$defaultContextPath
+      echo $APP_NAME
+      echo $CONTEXT_PATH
+
+  - type: Command
+    name: 'Deploy to OKE'
+    timeoutInSeconds: 600
+    command: |
+      echo "Deploying to Oracle Container Engine for Kubernetes..."
+
+      # Set kubectl context
+      kubectl config set-cluster oke-cluster --server=$OKE_CLUSTER_ENDPOINT
+      kubectl config set-credentials oke-user --token=$OKE_CLUSTER_TOKEN
+      kubectl config set-context oke-context --cluster=oke-cluster --user=oke-user
+      kubectl config use-context oke-context
+
+      # Apply Kubernetes manifests
+      kubectl apply -f k8s/namespace.yaml
+      kubectl apply -f k8s/configmap.yaml
+      kubectl apply -f k8s/secret.yaml
+      kubectl apply -f k8s/deployment.yaml
+      kubectl apply -f k8s/service.yaml
+      kubectl apply -f k8s/ingress.yaml
+
+      echo "Deployment completed successfully"
+
+  - type: Command
+    name: 'Verify Deployment'
+    timeoutInSeconds: 300
+    command: |
+      echo "Verifying deployment..."
+
+      # Wait for pods to be ready
+      kubectl wait --for=condition=ready pod -l app=$APP_NAME -n $APP_NAME --timeout=300s
+
+      # Check deployment status
+      kubectl get pods -n $APP_NAME
+      kubectl get services -n $APP_NAME
+      kubectl get ingress -n $APP_NAME
+
+      echo "Deployment verification completed"
+
+parameters:
+  - name: 'OKE_CLUSTER_ENDPOINT'
+    defaultValue: ''
+    description: 'OKE cluster endpoint URL'
+
+  - name: 'OKE_CLUSTER_TOKEN'
+    defaultValue: ''
+    description: 'OKE cluster authentication token'
+
+  - name: 'OCI_REGION'
+    defaultValue: 'us-ashburn-1'
+    description: 'OCI region for deployment'
+
+  - name: 'OCI_TENANCY_NAMESPACE'
+    defaultValue: ''
+    description: 'OCI tenancy namespace'
+
+  - name: 'IMAGE_TAG'
+    defaultValue: 'latest'
+    description: 'Docker image tag to deploy'

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rhythm-archive-config
+  namespace: rhythm-archive
+data:
+  NODE_ENV: 'production'
+  PORT: '3000'
+  DATABASE_URL: 'mysql://rhythm:rhythm123@mariadb:3306/rhythmdb'
+  JWT_SECRET: 'your-jwt-secret-key'
+  JWT_EXPIRES_IN: '1d'
+  REFRESH_TOKEN_EXPIRES_IN: '7d'
+  CORS_ORIGIN: '*'
+  UPLOAD_DEST: './uploads'
+  MAX_FILE_SIZE: '10485760' # 10MB

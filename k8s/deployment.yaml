@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rhythm-archive
+  namespace: rhythm-archive
+  labels:
+    app: rhythm-archive
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rhythm-archive
+  template:
+    metadata:
+      labels:
+        app: rhythm-archive
+    spec:
+      containers:
+        - name: rhythm-archive
+          image: us-ashburn-1.ocir.io/your-tenancy-namespace/rhythm-archive:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: rhythm-archive-config
+                  key: NODE_ENV
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: rhythm-archive-config
+                  key: PORT
+            - name: DATABASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rhythm-archive-config
+                  key: DATABASE_URL
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rhythm-archive-secrets
+                  key: JWT_SECRET
+            - name: JWT_EXPIRES_IN
+              valueFrom:
+                configMapKeyRef:
+                  name: rhythm-archive-config
+                  key: JWT_EXPIRES_IN
+            - name: REFRESH_TOKEN_EXPIRES_IN
+              valueFrom:
+                configMapKeyRef:
+                  name: rhythm-archive-config
+                  key: REFRESH_TOKEN_EXPIRES_IN
+            - name: CORS_ORIGIN
+              valueFrom:
+                configMapKeyRef:
+                  name: rhythm-archive-config
+                  key: CORS_ORIGIN
+            - name: UPLOAD_DEST
+              valueFrom:
+                configMapKeyRef:
+                  name: rhythm-archive-config
+                  key: UPLOAD_DEST
+            - name: MAX_FILE_SIZE
+              valueFrom:
+                configMapKeyRef:
+                  name: rhythm-archive-config
+                  key: MAX_FILE_SIZE
+          resources:
+            requests:
+              memory: '256Mi'
+              cpu: '250m'
+            limits:
+              memory: '512Mi'
+              cpu: '500m'
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: uploads-volume
+              mountPath: /app/uploads
+      volumes:
+        - name: uploads-volume
+          emptyDir: {}
+      imagePullSecrets:
+        - name: ocir-secret
