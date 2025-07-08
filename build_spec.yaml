@@ -4,15 +4,10 @@ timeoutInSeconds: 6000
 runAs: root
 shell: bash
 env:
-  # these are local variables to the build config
   variables:
     defaultAppName: 'rhythm-archive'
     defaultContextPath: '/'
-  # the value of a vaultVariable is the secret-id (in OCI ID format) stored in the OCI Vault service
-  # you can then access the value of that secret in your build_spec.yaml commands
   vaultVariables:
-  # exportedVariables are made available to use as parameters in sucessor Build Pipeline stages
-  # For this Build to run, the Build Pipeline needs to have a BUILDRUN_HASH parameter set
   exportedVariables:
     - BUILDRUN_HASH
     - APP_NAME
@@ -20,8 +15,6 @@ env:
     - TAG
     - CONTEXT_PATH
 
-# Its a native way to fetch artifacts from external or artifact repo or a file path to use before a stage.
-# More about buildspec formats - https://docs.oracle.com/en-us/iaas/Content/devops/using/build_specs.htm
 inputArtifacts:
 
 outputArtifacts:
@@ -47,17 +40,14 @@ steps:
     timeoutInSeconds: 300
     command: |
       echo "Installing Node.js 22 using nvm on Oracle Linux 7..."
-      # nvm을 사용하여 Node.js 22 설치
       curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
       export NVM_DIR="$HOME/.nvm"
       [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
       [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-
       echo "Installing Node.js 22..."
       nvm install 22
       nvm use 22
       nvm alias default 22
-
       echo "Node.js version: $(node --version)"
       echo "npm version: $(npm --version)"
       echo "Installing Node.js dependencies..."
@@ -66,10 +56,6 @@ steps:
       npm install -g nestia
       npm install -g ts-patch
       echo "Dependencies installed successfully"
-      echo "Verifying global installations..."
-      which nest || echo "NestJS CLI not found in PATH"
-      which ts-patch || echo "ts-patch not found in PATH"
-      echo "Global installations verification completed"
 
   - type: Command
     name: 'Run Tests'
@@ -94,16 +80,6 @@ steps:
       echo "Generating Swagger documentation..."
       npm run swagger:generate
       echo "Swagger documentation generated successfully"
-
-  - type: Command
-    name: 'Verify Dependencies'
-    timeoutInSeconds: 60
-    command: |
-      echo "Verifying dependencies..."
-      echo "Node.js version: $(node --version)"
-      echo "npm version: $(npm --version)"
-      echo "Current directory: $(pwd)"
-      echo "Dependencies verification completed"
 
   - type: Command
     name: 'Define Image Tag - Commit ID'
@@ -151,6 +127,5 @@ steps:
     timeoutInSeconds: 60
     command: |
       echo "Preparing Kubernetes manifests for artifact repository..."
-      # Update image tag in deployment.yaml
       sed -i "s|us-ashburn-1.ocir.io/your-tenancy-namespace/rhythm-archive:latest|$IMAGE_PATH:$TAG|g" k8s/deployment.yaml
       echo "Kubernetes manifests prepared successfully"
