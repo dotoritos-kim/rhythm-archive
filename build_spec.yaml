@@ -36,25 +36,16 @@ steps:
       echo $CONTEXT_PATH
 
   - type: Command
-    name: 'Install Dependencies'
+    name: 'Install Node.js 18 and Dependencies'
     timeoutInSeconds: 900
     command: |
-      echo "Patching system for Node.js 22 compatibility on Oracle Linux 7..."
+      echo "Installing Node.js 18 for system compatibility..."
 
-      # 시스템 업데이트 및 필수 패키지 설치
+      # 시스템 업데이트
       yum update -y
       yum install -y epel-release
       yum groupinstall -y "Development Tools"
-      yum install -y wget curl git cmake pkgconfig
-
-            # Node.js 22 호환성을 위한 시스템 패치
-      echo "Patching system for Node.js 22 compatibility..."
-
-      # Docker를 사용해서 Node.js 22 환경에서 빌드
-      echo "Using Docker container for Node.js 22 build environment..."
-
-                  # Node.js 18을 사용하여 빌드 (시스템 호환성 문제 해결)
-      echo "Installing Node.js 18 for system compatibility..."
+      yum install -y wget curl git
 
       # Node.js 18 설치
       curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
@@ -66,6 +57,9 @@ steps:
 
       # 프로젝트 디렉토리로 이동
       cd ${OCI_PRIMARY_SOURCE_DIR}
+
+      echo "Current directory: $(pwd)"
+      echo "Directory contents: $(ls -la)"
 
       echo "Installing Node.js dependencies..."
       npm ci
@@ -86,31 +80,11 @@ steps:
       echo "Dist directory contents: $(ls -la dist/ 2>/dev/null || echo 'dist not found')"
       echo "Generated directory contents: $(ls -la generated/ 2>/dev/null || echo 'generated not found')"
 
-      # 빌드 결과 확인
-      echo "Build artifacts:"
-      ls -la dist/ 2>/dev/null || echo "dist directory not found"
-      ls -la generated/ 2>/dev/null || echo "generated directory not found"
-
-      # 빌드 결과가 없으면 오류
-      if [ ! -d "dist" ]; then
-        echo "ERROR: dist directory not found!"
-        exit 1
-      fi
-
-      if [ ! -d "generated" ]; then
-        echo "ERROR: generated directory not found!"
-        exit 1
-      fi
-
-      echo "Build completed successfully in Docker container"
-
-            echo "Dependencies and build completed successfully"
-
   - type: Command
     name: 'Verify Build Results'
     timeoutInSeconds: 60
     command: |
-      echo "Verifying build results from Docker container..."
+      echo "Verifying build results..."
       echo "Current directory: $(pwd)"
       echo "Directory contents: $(ls -la)"
       echo "Dist directory: $(ls -la dist/ 2>/dev/null || echo 'dist directory not found')"
