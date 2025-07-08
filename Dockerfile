@@ -21,7 +21,7 @@ RUN npx prisma generate || echo "Prisma generate failed, continuing..."
 # Copy source code
 COPY src/ ./src/
 
-# Create generated directory
+# Create generated directory and ensure it exists
 RUN mkdir -p generated
 
 # Verify dependencies before build
@@ -58,8 +58,8 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Copy generated Swagger documentation
-COPY --from=builder /app/generated ./generated
+# Create generated directory (will be empty if no files exist)
+RUN mkdir -p generated
 
 # Create uploads directory
 RUN mkdir -p uploads && chown -R nestjs:nodejs uploads

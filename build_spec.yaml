@@ -143,9 +143,13 @@ steps:
     timeoutInSeconds: 1200
     command: |
       cd ${OCI_PRIMARY_SOURCE_DIR}
+      echo "Building Docker image..."
+      docker build --pull --rm -t new-generated-image . --build-arg BUILDKIT_INLINE_CACHE=1 || echo "Docker build failed, retrying..."
       docker build --pull --rm -t new-generated-image . --build-arg BUILDKIT_INLINE_CACHE=1
+      echo "Tagging Docker image..."
       docker tag new-generated-image $IMAGE_PATH:$TAG
       docker tag new-generated-image $IMAGE_PATH:latest
+      echo "Docker image built successfully"
 
   - type: Command
     name: 'Push Container Image'
