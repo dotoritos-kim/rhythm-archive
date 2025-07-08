@@ -46,17 +46,22 @@ steps:
     name: 'Install Dependencies'
     timeoutInSeconds: 300
     command: |
-      echo "Installing Node.js 22..."
-      # Node.js 22 설치 (OCI DevOps 빌드 환경에서)
-      curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-      apt-get install -y nodejs
+      echo "Installing Node.js 22 on Oracle Linux..."
+      # Oracle Linux에서 Node.js 22 설치
+      curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
+      dnf install -y nodejs || yum install -y nodejs
       echo "Node.js version: $(node --version)"
+      echo "npm version: $(npm --version)"
       echo "Installing Node.js dependencies..."
       npm ci
       npm install -g @nestjs/cli
       npm install -g nestia
       npm install -g ts-patch
       echo "Dependencies installed successfully"
+      echo "Verifying global installations..."
+      which nest || echo "NestJS CLI not found in PATH"
+      which ts-patch || echo "ts-patch not found in PATH"
+      echo "Global installations verification completed"
 
   - type: Command
     name: 'Run Tests'
@@ -89,8 +94,7 @@ steps:
       echo "Verifying dependencies..."
       echo "Node.js version: $(node --version)"
       echo "npm version: $(npm --version)"
-      echo "ts-patch version: $(npx ts-patch --version || echo 'ts-patch not found')"
-      echo "NestJS CLI version: $(nest --version || echo 'NestJS CLI not found')"
+      echo "Current directory: $(pwd)"
       echo "Dependencies verification completed"
 
   - type: Command
