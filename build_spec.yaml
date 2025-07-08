@@ -42,14 +42,22 @@ steps:
       echo $APP_NAME
       echo $CONTEXT_PATH
 
-  - type: Command
+    - type: Command
     name: 'Install Dependencies'
     timeoutInSeconds: 300
     command: |
-      echo "Installing Node.js 22 on Oracle Linux..."
-      # Oracle Linux에서 Node.js 22 설치
-      curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
-      dnf install -y nodejs || yum install -y nodejs
+      echo "Installing Node.js 22 using nvm on Oracle Linux 7..."
+      # nvm을 사용하여 Node.js 22 설치
+      curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+      export NVM_DIR="$HOME/.nvm"
+      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+      [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+      
+      echo "Installing Node.js 22..."
+      nvm install 22
+      nvm use 22
+      nvm alias default 22
+      
       echo "Node.js version: $(node --version)"
       echo "npm version: $(npm --version)"
       echo "Installing Node.js dependencies..."
