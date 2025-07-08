@@ -29,7 +29,7 @@ outputArtifacts:
     type: DOCKER_IMAGE
     location: $IMAGE_PATH:$TAG
   - name: output-oci-oke-deployment
-    type: GENERIC_ARTIFACT
+    type: BINARY
     location: k8s/
 
 steps:
