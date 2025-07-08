@@ -73,7 +73,7 @@ steps:
       echo "Installing dependencies with Node.js 22..."
       npm cache clean --force
       echo "Installing Node.js dependencies..."
-      npm ci --legacy-peer-deps --verbose || npm install --legacy-peer-deps --verbose
+      npm install --legacy-peer-deps
       echo "Verifying node_modules..."
       ls -la node_modules/@nestjs/
       echo "Installing global packages..."

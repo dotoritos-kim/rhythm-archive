@@ -10,7 +10,7 @@ COPY tsconfig*.json ./
 
 # Install dependencies (including dev dependencies for build)
 RUN npm cache clean --force
-RUN npm ci --legacy-peer-deps --verbose || npm install --legacy-peer-deps --verbose
+RUN npm install --legacy-peer-deps
 
 # Copy Prisma files first
 COPY prisma ./prisma/
@@ -47,7 +47,7 @@ RUN adduser -S nestjs -u 1001
 COPY package*.json ./
 
 # Install only production dependencies
-RUN npm ci --only=production --legacy-peer-deps && npm cache clean --force
+RUN npm install --only=production --legacy-peer-deps && npm cache clean --force
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
