@@ -42,7 +42,7 @@ steps:
       echo $APP_NAME
       echo $CONTEXT_PATH
 
-    - type: Command
+  - type: Command
     name: 'Install Dependencies'
     timeoutInSeconds: 300
     command: |
@@ -52,12 +52,12 @@ steps:
       export NVM_DIR="$HOME/.nvm"
       [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
       [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-      
+
       echo "Installing Node.js 22..."
       nvm install 22
       nvm use 22
       nvm alias default 22
-      
+
       echo "Node.js version: $(node --version)"
       echo "npm version: $(npm --version)"
       echo "Installing Node.js dependencies..."
