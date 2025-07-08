@@ -11,6 +11,7 @@ COPY tsconfig*.json ./
 # Install dependencies (including dev dependencies for build)
 RUN npm cache clean --force
 RUN npm install --legacy-peer-deps
+RUN npm install -g typescript ts-node tsconfig-paths prettier eslint prisma ts-patch jest @swc/cli @swc/core
 
 # Copy Prisma files first
 COPY prisma ./prisma/

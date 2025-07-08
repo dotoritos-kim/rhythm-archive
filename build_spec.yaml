@@ -79,6 +79,29 @@ steps:
       echo "Installing global packages..."
       npm install -g @nestjs/cli
       npm install -g nestia
+      npm install -g typescript
+      npm install -g ts-node
+      npm install -g tsconfig-paths
+      npm install -g prettier
+      npm install -g eslint
+      npm install -g prisma
+      npm install -g ts-patch
+      npm install -g jest
+      npm install -g @swc/cli
+      npm install -g @swc/core
+      echo "Global packages installed successfully"
+      echo "TypeScript version:"
+      tsc --version
+      echo "NestJS CLI version:"
+      nest --version
+      echo "Prisma version:"
+      prisma --version
+      echo "Jest version:"
+      jest --version
+      echo "Prettier version:"
+      prettier --version
+      echo "ESLint version:"
+      eslint --version
       echo "Generating Prisma client..."
       npx prisma generate || echo "Prisma generate failed, continuing..."
       echo "Dependencies installed successfully"
