@@ -8,15 +8,12 @@ COPY package*.json ./
 COPY nestia.config.ts ./
 COPY tsconfig*.json ./
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install dependencies (including dev dependencies for build)
+RUN npm ci && npm cache clean --force
 
 # Copy source code
 COPY src/ ./src/
 COPY prisma/ ./prisma/
-
-# Install dev dependencies for build
-RUN npm install
 
 # Generate Prisma client
 RUN npx prisma generate

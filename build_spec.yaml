@@ -55,6 +55,7 @@ steps:
       npm ci
       npm install -g @nestjs/cli
       npm install -g nestia
+      npm install -g ts-patch
       echo "Dependencies installed successfully"
 
   - type: Command
@@ -82,6 +83,17 @@ steps:
       echo "Swagger documentation generated successfully"
 
   - type: Command
+    name: 'Verify Dependencies'
+    timeoutInSeconds: 60
+    command: |
+      echo "Verifying dependencies..."
+      echo "Node.js version: $(node --version)"
+      echo "npm version: $(npm --version)"
+      echo "ts-patch version: $(npx ts-patch --version || echo 'ts-patch not found')"
+      echo "NestJS CLI version: $(nest --version || echo 'NestJS CLI not found')"
+      echo "Dependencies verification completed"
+
+  - type: Command
     name: 'Define Image Tag - Commit ID'
     timeoutInSeconds: 30
     command: |
@@ -102,9 +114,17 @@ steps:
     timeoutInSeconds: 1200
     command: |
       cd ${OCI_PRIMARY_SOURCE_DIR}
+      echo "Building Docker image..."
       docker build --pull --rm -t new-generated-image . --build-arg BUILDKIT_INLINE_CACHE=1
-      docker tag new-generated-image $IMAGE_PATH:$TAG
-      docker tag new-generated-image $IMAGE_PATH:latest
+      if [ $? -eq 0 ]; then
+        echo "Docker build successful"
+        docker tag new-generated-image $IMAGE_PATH:$TAG
+        docker tag new-generated-image $IMAGE_PATH:latest
+        echo "Docker image tagged successfully"
+      else
+        echo "Docker build failed"
+        exit 1
+      fi
 
   - type: Command
     name: 'Push Container Image'
