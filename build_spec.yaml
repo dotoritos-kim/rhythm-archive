@@ -43,13 +43,34 @@ steps:
       echo $CONTEXT_PATH
 
   - type: Command
+    name: 'Install Node.js 22 with NVM'
+    timeoutInSeconds: 300
+    command: |
+      echo "Installing NVM..."
+      curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+      export NVM_DIR="$HOME/.nvm"
+      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+      [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+      echo "NVM installed successfully"
+      echo "Installing Node.js 22..."
+      nvm install 22
+      nvm use 22
+      nvm alias default 22
+      echo "Node.js version:"
+      node --version
+      echo "npm version:"
+      npm --version
+      echo "Node.js 22 installed successfully with NVM"
+
+  - type: Command
     name: 'Install Dependencies'
     timeoutInSeconds: 300
     command: |
-      echo "Checking Node.js version..."
-      node --version
-      npm --version
-      echo "Cleaning npm cache..."
+      echo "Loading NVM environment..."
+      export NVM_DIR="$HOME/.nvm"
+      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+      nvm use 22
+      echo "Installing dependencies with Node.js 22..."
       npm cache clean --force
       echo "Installing Node.js dependencies..."
       npm ci --legacy-peer-deps --verbose || npm install --legacy-peer-deps --verbose
@@ -66,6 +87,10 @@ steps:
     name: 'Run Tests'
     timeoutInSeconds: 300
     command: |
+      echo "Loading NVM environment..."
+      export NVM_DIR="$HOME/.nvm"
+      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+      nvm use 22
       echo "Running application tests (optional - will continue even if tests fail)..."
       npm run test || echo "Tests failed but continuing with build..."
       echo "Tests completed"
@@ -74,6 +99,10 @@ steps:
     name: 'Build Application'
     timeoutInSeconds: 600
     command: |
+      echo "Loading NVM environment..."
+      export NVM_DIR="$HOME/.nvm"
+      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+      nvm use 22
       echo "Verifying dependencies before build..."
       ls -la node_modules/@nestjs/common || echo "NestJS common not found, reinstalling..."
       ls -la node_modules/@nestjs/swagger || echo "NestJS swagger not found, reinstalling..."
@@ -85,6 +114,10 @@ steps:
     name: 'Generate Swagger Documentation'
     timeoutInSeconds: 120
     command: |
+      echo "Loading NVM environment..."
+      export NVM_DIR="$HOME/.nvm"
+      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+      nvm use 22
       echo "Generating Swagger documentation..."
       npm run swagger:generate || echo "Swagger generation failed, continuing..."
       echo "Swagger documentation generation completed"
