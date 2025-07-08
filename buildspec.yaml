@@ -1,0 +1,119 @@
+version: 0.1
+component: build
+timeoutInSeconds: 6000
+runAs: root
+shell: bash
+env:
+  # these are local variables to the build config
+  variables:
+    defaultAppName: 'rhythm-archive'
+    defaultContextPath: '/'
+  # the value of a vaultVariable is the secret-id (in OCI ID format) stored in the OCI Vault service
+  # you can then access the value of that secret in your build_spec.yaml commands
+  vaultVariables:
+  # exportedVariables are made available to use as parameters in sucessor Build Pipeline stages
+  # For this Build to run, the Build Pipeline needs to have a BUILDRUN_HASH parameter set
+  exportedVariables:
+    - BUILDRUN_HASH
+    - APP_NAME
+    - IMAGE_PATH
+    - TAG
+    - CONTEXT_PATH
+
+# Its a native way to fetch artifacts from external or artifact repo or a file path to use before a stage.
+# More about buildspec formats - https://docs.oracle.com/en-us/iaas/Content/devops/using/build_specs.htm
+inputArtifacts:
+
+outputArtifacts:
+  - name: output-image
+    type: DOCKER_IMAGE
+    location: $IMAGE_PATH:$TAG
+  - name: output-oci-oke-deployment
+    type: BINARY
+    location: k8s/
+
+steps:
+  - type: Command
+    name: 'Init exportedVariables'
+    timeoutInSeconds: 30
+    command: |
+      APP_NAME=$defaultAppName
+      CONTEXT_PATH=$defaultContextPath
+      echo $APP_NAME
+      echo $CONTEXT_PATH
+
+  - type: Command
+    name: 'Install Dependencies'
+    timeoutInSeconds: 300
+    command: |
+      echo "Installing Node.js dependencies..."
+      npm ci
+      npm install -g @nestjs/cli
+      npm install -g nestia
+      echo "Dependencies installed successfully"
+
+  - type: Command
+    name: 'Run Tests'
+    timeoutInSeconds: 300
+    command: |
+      echo "Running application tests..."
+      npm run test
+      echo "Tests completed successfully"
+
+  - type: Command
+    name: 'Build Application'
+    timeoutInSeconds: 600
+    command: |
+      echo "Building NestJS application..."
+      npm run build
+      echo "Application built successfully"
+
+  - type: Command
+    name: 'Generate Swagger Documentation'
+    timeoutInSeconds: 120
+    command: |
+      echo "Generating Swagger documentation..."
+      npm run swagger:generate
+      echo "Swagger documentation generated successfully"
+
+  - type: Command
+    name: 'Define Image Tag - Commit ID'
+    timeoutInSeconds: 30
+    command: |
+      COMMIT_ID=`echo ${OCI_TRIGGER_COMMIT_HASH} | cut -c 1-7`
+      BUILDRUN_HASH=`echo ${OCI_BUILD_RUN_ID} | rev | cut -c 1-7`
+      [ -z "$COMMIT_ID" ] && TAG=$BUILDRUN_HASH || TAG=$COMMIT_ID
+
+  - type: Command
+    name: 'Define Image Path'
+    timeoutInSeconds: 30
+    command: |
+      TENANCY_NAMESPACE=`oci os ns get --query data --raw-output`
+      REPO_NAME=$APP_NAME
+      IMAGE_PATH=$OCI_RESOURCE_PRINCIPAL_REGION.ocir.io/$TENANCY_NAMESPACE/$REPO_NAME
+
+  - type: Command
+    name: 'Build Container Image'
+    timeoutInSeconds: 1200
+    command: |
+      cd ${OCI_PRIMARY_SOURCE_DIR}
+      docker build --pull --rm -t new-generated-image . --build-arg BUILDKIT_INLINE_CACHE=1
+      docker tag new-generated-image $IMAGE_PATH:$TAG
+      docker tag new-generated-image $IMAGE_PATH:latest
+
+  - type: Command
+    name: 'Push Container Image'
+    timeoutInSeconds: 600
+    command: |
+      docker push $IMAGE_PATH:$TAG
+      docker push $IMAGE_PATH:latest
+      echo "Container image pushed successfully"
+
+  - type: Command
+    name: 'Prepare Kubernetes Manifests'
+    timeoutInSeconds: 60
+    command: |
+      echo "Preparing Kubernetes manifests for artifact repository..."
+      # Update image tag in deployment.yaml
+      sed -i "s|us-ashburn-1.ocir.io/your-tenancy-namespace/rhythm-archive:latest|$IMAGE_PATH:$TAG|g" k8s/deployment.yaml
+      echo "Kubernetes manifests prepared successfully"
