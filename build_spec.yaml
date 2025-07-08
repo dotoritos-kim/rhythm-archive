@@ -46,6 +46,11 @@ steps:
     name: 'Install Dependencies'
     timeoutInSeconds: 300
     command: |
+      echo "Installing Node.js 22..."
+      # Node.js 22 설치 (OCI DevOps 빌드 환경에서)
+      curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+      apt-get install -y nodejs
+      echo "Node.js version: $(node --version)"
       echo "Installing Node.js dependencies..."
       npm ci
       npm install -g @nestjs/cli
