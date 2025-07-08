@@ -1,0 +1,592 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// OAuth 2.0 관련 모델들
+model Role {
+  id          String   @id @db.Char(32)
+  name        String   @unique @db.VarChar(255)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+  users       User[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @db.Char(32)
+  name        String   @unique @db.VarChar(255)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+
+  @@map("permissions")
+}
+
+model User {
+  id            String   @id @db.Char(32)
+  email         String   @unique @db.VarChar(255)
+  password      String?  @db.VarChar(255)
+  name          String?  @db.VarChar(255)
+  createdAt     DateTime @default(now()) @map("createdAt")
+  updatedAt     DateTime @updatedAt @map("updatedAt")
+  isActive      Boolean  @default(true) @map("isActive")
+  emailVerified Boolean  @default(false) @map("emailVerified")
+  roleId        String?  @map("role_id") @db.Char(32)
+  
+  // OAuth 2.0 관계
+  role          Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  userInfo      UserInfo?
+  sessions      Session[]
+  accessTokens  AccessToken[]
+  refreshTokens RefreshToken[]
+  authCodes     AuthorizationCode[]
+  clients       Client[] // 소유한 클라이언트들
+  
+  // CMS 관계
+  posts         Post[]
+  comments      Comment[]
+  attachments   Attachment[]
+  
+  // 즐겨찾기 관계
+  favoriteLists FavoriteList[]
+
+  @@map("users")
+}
+
+model UserInfo {
+  id          String   @id @db.Char(32)
+  userId      String   @unique @map("user_id") @db.Char(32)
+  givenName   String?  @map("given_name") @db.VarChar(255)
+  familyName  String?  @map("family_name") @db.VarChar(255)
+  middleName  String?  @map("middle_name") @db.VarChar(255)
+  nickname    String?  @db.VarChar(255)
+  picture     String?  @db.VarChar(500)
+  website     String?  @db.VarChar(500)
+  gender      String?  @db.VarChar(50)
+  birthdate   DateTime?
+  zoneinfo    String?  @db.VarChar(100)
+  locale      String?  @db.VarChar(10)
+  phoneNumber String?  @map("phone_number") @db.VarChar(50)
+  address     String?  @db.Text
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_info")
+}
+
+model Client {
+  id              String   @id @db.Char(32)
+  ownerId         String?  @map("owner_id") @db.Char(32)
+  name            String   @db.VarChar(255)
+  clientId        String   @unique @map("client_id") @db.VarChar(255)
+  clientSecret    String?  @map("client_secret") @db.VarChar(255)
+  redirectUris    String   @map("redirect_uris") @db.Text
+  grantTypes      String   @map("grant_types") @db.Text
+  responseTypes   String   @map("response_types") @db.Text
+  scopes          String   @db.Text
+  logoUrl         String?  @map("logo_url") @db.VarChar(500)
+  clientUri       String?  @map("client_uri") @db.VarChar(500)
+  policyUri       String?  @map("policy_uri") @db.VarChar(500)
+  tosUri          String?  @map("tos_uri") @db.VarChar(500)
+  jwksUri         String?  @map("jwks_uri") @db.VarChar(500)
+  contacts        String?  @db.Text
+  softwareId      String?  @map("software_id") @db.VarChar(255)
+  softwareVersion String?  @map("software_version") @db.VarChar(255)
+  createdAt       DateTime @default(now()) @map("createdAt")
+  updatedAt       DateTime @updatedAt @map("updatedAt")
+  isConfidential  Boolean  @default(true) @map("isConfidential")
+  isFirstParty    Boolean  @default(false) @map("isFirstParty")
+  isActive        Boolean  @default(true) @map("isActive")
+  isRootClient    Boolean  @default(false) @map("isRootClient")
+  
+  // OAuth 2.0 관계
+  owner           User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  accessTokens    AccessToken[]
+  refreshTokens   RefreshToken[]
+  authCodes       AuthorizationCode[]
+
+  @@map("clients")
+}
+
+model Session {
+  id        String   @id @db.Char(32)
+  userId    String   @map("user_id") @db.Char(32)
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.Text
+  expiresAt DateTime @map("expiresAt")
+  createdAt DateTime @default(now()) @map("createdAt")
+  lastActive DateTime @default(now()) @map("lastActive")
+  isRevoked Boolean  @default(false) @map("isRevoked")
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model AccessToken {
+  id        String   @id @db.Char(32)
+  token     String   @unique @db.VarChar(255)
+  clientId  String   @map("client_id") @db.Char(32)
+  userId    String?  @map("user_id") @db.Char(32)
+  scopes    String   @db.Text
+  expiresAt DateTime @map("expiresAt")
+  createdAt DateTime @default(now()) @map("createdAt")
+  isRevoked Boolean  @default(false) @map("isRevoked")
+  
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("access_tokens")
+}
+
+model RefreshToken {
+  id        String   @id @db.Char(32)
+  token     String   @unique @db.VarChar(255)
+  clientId  String   @map("client_id") @db.Char(32)
+  userId    String   @map("user_id") @db.Char(32)
+  scopes    String   @db.Text
+  expiresAt DateTime @map("expiresAt")
+  createdAt DateTime @default(now()) @map("createdAt")
+  isRevoked Boolean  @default(false) @map("isRevoked")
+  
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model AuthorizationCode {
+  id                 String   @id @db.Char(32)
+  code               String   @unique @db.VarChar(255)
+  clientId           String   @map("client_id") @db.Char(32)
+  userId             String   @map("user_id") @db.Char(32)
+  redirectUri        String   @map("redirect_uri") @db.VarChar(500)
+  scopes             String   @db.Text
+  codeChallenge      String?  @map("code_challenge") @db.VarChar(255)
+  codeChallengeMethod String? @map("code_challenge_method") @db.VarChar(50)
+  expiresAt          DateTime @map("expiresAt")
+  createdAt          DateTime @default(now()) @map("createdAt")
+  isUsed             Boolean  @default(false) @map("isUsed")
+  
+  client             Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("authorization_codes")
+}
+
+// CMS 관련 enum
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  PRIVATE
+  ARCHIVED
+}
+
+// CMS 관련 모델들
+model Category {
+  id          String   @id @db.Char(32)
+  name        String   @db.VarChar(255)
+  slug        String   @unique @db.VarChar(255)
+  description String?  @db.Text
+  parentId    String?  @map("parent_id") @db.Char(32)
+  order       Int      @default(0)
+  isActive    Boolean  @default(true) @map("isActive")
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+  deletedAt   DateTime? @map("deletedAt")
+  
+  // 관계
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Category[] @relation("CategoryHierarchy")
+  posts       Post[]
+
+  @@map("categories")
+}
+
+model Post {
+  id          String   @id @db.Char(32)
+  title       String   @db.VarChar(255)
+  slug        String   @unique @db.VarChar(255)
+  content     String   @db.LongText
+  excerpt     String?  @db.Text
+  featuredImage String? @map("featured_image") @db.VarChar(500)
+  status      PostStatus @default(DRAFT)
+  publishedAt DateTime? @map("publishedAt")
+  authorId    String   @map("author_id") @db.Char(32)
+  categoryId  String?  @map("category_id") @db.Char(32)
+  viewCount   Int      @default(0) @map("viewCount")
+  isSticky    Boolean  @default(false) @map("isSticky")
+  isCommentable Boolean @default(true) @map("isCommentable")
+  metaTitle   String?  @map("meta_title") @db.VarChar(255)
+  metaDescription String? @map("meta_description") @db.Text
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+  deletedAt   DateTime? @map("deletedAt")
+  
+  // 관계
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  comments    Comment[]
+  tags        PostTag[]
+  attachments PostAttachment[]
+
+  @@fulltext([title, content, excerpt], map: "ft_posts")
+  @@map("posts")
+}
+
+model Comment {
+  id        String   @id @db.Char(32)
+  content   String   @db.Text
+  postId    String   @map("post_id") @db.Char(32)
+  authorId  String   @map("author_id") @db.Char(32)
+  parentId  String?  @map("parent_id") @db.Char(32)
+  isApproved Boolean @default(false) @map("isApproved")
+  createdAt DateTime @default(now()) @map("createdAt")
+  updatedAt DateTime @updatedAt @map("updatedAt")
+  deletedAt DateTime? @map("deletedAt")
+  
+  // 관계
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent    Comment? @relation("CommentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Comment[] @relation("CommentHierarchy")
+
+  @@map("comments")
+}
+
+model Tag {
+  id        String   @id @db.Char(32)
+  name      String   @unique @db.VarChar(255)
+  slug      String   @unique @db.VarChar(255)
+  description String? @db.Text
+  createdAt DateTime @default(now()) @map("createdAt")
+  updatedAt DateTime @updatedAt @map("updatedAt")
+  deletedAt DateTime? @map("deletedAt")
+  
+  posts     PostTag[]
+
+  @@map("cms_tags")
+}
+
+model PostTag {
+  id      String @id @db.Char(32)
+  postId  String @map("post_id") @db.Char(32)
+  tagId   String @map("tag_id") @db.Char(32)
+  
+  post    Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, tagId], map: "uq_post_tag")
+  @@map("post_tags")
+}
+
+model Attachment {
+  id          String   @id @db.Char(32)
+  filename    String   @db.VarChar(255)
+  originalName String  @map("original_name") @db.VarChar(255)
+  mimeType    String   @map("mime_type") @db.VarChar(100)
+  size        Int
+  path        String   @db.VarChar(500)
+  url         String   @db.VarChar(500)
+  uploaderId  String   @map("uploader_id") @db.Char(32)
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+  deletedAt   DateTime? @map("deletedAt")
+  
+  uploader    User     @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  postAttachments PostAttachment[]
+
+  @@map("attachments")
+}
+
+model PostAttachment {
+  id           String @id @db.Char(32)
+  postId       String @map("post_id") @db.Char(32)
+  attachmentId String @map("attachment_id") @db.Char(32)
+  
+  post         Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  attachment   Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, attachmentId], map: "uq_post_attachment")
+  @@map("post_attachments")
+}
+
+// 기존 리듬게임 관련 모델들
+model Song {
+  id               String   @id @db.Char(32)
+  title            String   @db.VarChar(255)
+  originalTitle    String?  @map("original_title") @db.VarChar(255)
+  createdAt        DateTime @default(now()) @map("createdAt")
+  updatedAt        DateTime @updatedAt @map("updatedAt")
+  deletedAt        DateTime? @map("deletedAt")
+  songComposers    SongComposer[]
+  songGameVersions SongGameVersion[]
+  songInfos        SongInfo?
+  songTags         SongTag[]
+
+  @@unique([title], map: "uq_songs_title")
+  @@fulltext([title, originalTitle], map: "ft_songs_title")
+  @@map("songs")
+}
+
+model SongInfo {
+  id        String   @id @db.Char(32)
+  songId    String   @unique @map("song_id") @db.Char(32)
+  bpm       Decimal? @db.Decimal(6, 2)
+  beat      String?  @db.VarChar(32)
+  lengthSec Int?     @map("length_sec")
+  extra     String?  @db.LongText
+  createdAt DateTime @default(now()) @map("createdAt")
+  updatedAt DateTime @updatedAt @map("updatedAt")
+  deletedAt DateTime? @map("deletedAt")
+  song      Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@map("song_infos")
+}
+
+model Composer {
+  id            String   @id @db.Char(32)
+  name          String   @db.VarChar(255)
+  companyName   String?  @map("company_name") @db.VarChar(255)
+  extra         String?  @db.LongText
+  createdAt     DateTime @default(now()) @map("createdAt")
+  updatedAt     DateTime @updatedAt @map("updatedAt")
+  deletedAt     DateTime? @map("deletedAt")
+  songComposers SongComposer[]
+
+  @@unique([name, companyName], map: "uq_composer_name_company")
+  @@fulltext([name, companyName], map: "ft_composers")
+  @@map("composers")
+}
+
+model SongComposer {
+  id         String   @id @db.Char(32)
+  songId     String   @map("song_id") @db.Char(32)
+  composerId String   @map("composer_id") @db.Char(32)
+  createdAt  DateTime @default(now()) @map("createdAt")
+  updatedAt  DateTime @updatedAt @map("updatedAt")
+  deletedAt  DateTime? @map("deletedAt")
+  composer   Composer   @relation(fields: [composerId], references: [id], onDelete: Cascade)
+  song       Song       @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@unique([songId, composerId], map: "uq_song_composer")
+  @@index([composerId], map: "idx_song_composers_composer")
+  @@map("song_composers")
+}
+
+model Game {
+  id               String   @id @db.Char(32)
+  name             String   @unique @db.VarChar(255)
+  releaseDate      DateTime? @map("release_date") @db.Date
+  publisher        String?  @db.VarChar(255)
+  extra            String?  @db.LongText
+  createdAt        DateTime @default(now()) @map("createdAt")
+  updatedAt        DateTime @updatedAt @map("updatedAt")
+  deletedAt        DateTime? @map("deletedAt")
+  courses          Course[]
+  dlcs             Dlc[]
+  songGameVersions SongGameVersion[]
+
+  @@fulltext([name], map: "ft_games_name")
+  @@map("games")
+}
+
+model Dlc {
+  id               String   @id @db.Char(32)
+  gameId           String   @map("game_id") @db.Char(32)
+  dlcName          String   @map("dlc_name") @db.VarChar(255)
+  releaseDate      DateTime? @map("release_date") @db.Date
+  extra            String?  @db.LongText
+  createdAt        DateTime @default(now()) @map("createdAt")
+  updatedAt        DateTime @updatedAt @map("updatedAt")
+  deletedAt        DateTime? @map("deletedAt")
+  courses          Course[]
+  game             Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  songGameVersions SongGameVersion[]
+
+  @@unique([gameId, dlcName], map: "uq_dlcs_game_name")
+  @@fulltext([dlcName], map: "ft_dlcs_name")
+  @@map("dlcs")
+}
+
+model SongGameVersion {
+  id             String   @id @db.Char(32)
+  songId         String   @map("song_id") @db.Char(32)
+  gameId         String   @map("game_id") @db.Char(32)
+  dlcId          String?  @map("dlc_id") @db.Char(32)
+  inGameTitle    String?  @map("in_game_title") @db.VarChar(255)
+  bpmOverride    Decimal? @map("bpm_override") @db.Decimal(6, 2)
+  lengthSec      Int?     @map("length_sec")
+  arrangement    String?  @db.VarChar(128)
+  firstVersion   String?  @map("first_version") @db.VarChar(255)
+  firstDate      DateTime? @map("first_date") @db.Date
+  extra          String?  @db.LongText
+  createdAt      DateTime @default(now()) @map("createdAt")
+  updatedAt      DateTime @updatedAt @map("updatedAt")
+  deletedAt      DateTime? @map("deletedAt")
+  charts         Chart[]
+  dlc            Dlc?     @relation(fields: [dlcId], references: [id])
+  game           Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  song           Song       @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@unique([songId, gameId, dlcId, inGameTitle], map: "uq_sgv_unique")
+  @@index([gameId], map: "idx_sgv_game")
+  @@index([dlcId], map: "idx_sgv_dlc")
+  @@fulltext([inGameTitle, arrangement], map: "ft_sgv")
+  @@map("song_game_versions")
+}
+
+model Chart {
+  id              String   @id @db.Char(32)
+  sgvId           String   @map("sgv_id") @db.Char(32)
+  difficultyName  String   @map("difficulty_name") @db.VarChar(64)
+  level           Decimal    @db.Decimal(4, 2)
+  noteCount       Int?       @map("note_count")
+  chartType       String?    @map("chart_type") @db.VarChar(64)
+  extra           String?    @db.LongText
+  createdAt       DateTime   @default(now()) @map("createdAt")
+  updatedAt       DateTime   @updatedAt @map("updatedAt")
+  deletedAt       DateTime?  @map("deletedAt")
+  songGameVersion SongGameVersion @relation(fields: [sgvId], references: [id], onDelete: Cascade)
+  courseEntries   CourseEntry[]
+
+  @@unique([sgvId, difficultyName], map: "uq_charts_sgv_diff")
+  @@index([level], map: "idx_charts_level")
+  @@fulltext([difficultyName], map: "ft_chart_diff")
+  @@map("charts")
+}
+
+model Course {
+  id             String   @id @db.Char(32)
+  gameId         String   @map("game_id") @db.Char(32)
+  dlcId          String?  @map("dlc_id") @db.Char(32)
+  courseName     String   @map("course_name") @db.VarChar(255)
+  difficulty     String?  @db.VarChar(64)
+  extra          String?  @db.LongText
+  createdAt      DateTime @default(now()) @map("createdAt")
+  updatedAt      DateTime @updatedAt @map("updatedAt")
+  deletedAt      DateTime? @map("deletedAt")
+  courseEntries  CourseEntry[]
+  dlc            Dlc?       @relation(fields: [dlcId], references: [id])
+  game           Game         @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, courseName], map: "uq_courses_game_name")
+  @@index([dlcId], map: "idx_courses_dlc")
+  @@fulltext([courseName], map: "ft_course_name")
+  @@map("courses")
+}
+
+model CourseEntry {
+  id             String   @id @db.Char(32)
+  courseId       String   @map("course_id") @db.Char(32)
+  chartId        String   @map("chart_id") @db.Char(32)
+  position       Int
+  extra          String?  @db.LongText
+  createdAt      DateTime @default(now()) @map("createdAt")
+  updatedAt      DateTime @updatedAt @map("updatedAt")
+  deletedAt      DateTime? @map("deletedAt")
+  chart          Chart      @relation(fields: [chartId], references: [id], onDelete: Cascade)
+  course         Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, chartId], map: "uq_course_chart")
+  @@index([chartId], map: "idx_course_entries_chart")
+  @@map("course_entries")
+}
+
+model SongTag {
+  id             String   @id @db.Char(32)
+  songId         String   @map("song_id") @db.Char(32)
+  tagId          String   @map("tag_id") @db.Char(32)
+  createdAt      DateTime @default(now()) @map("createdAt")
+  updatedAt      DateTime @updatedAt @map("updatedAt")
+  deletedAt      DateTime? @map("deletedAt")
+  song           Song       @relation(fields: [songId], references: [id], onDelete: Cascade)
+  tag            SongTagItem @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([songId, tagId], map: "uq_song_tag")
+  @@map("song_tags")
+}
+
+model SongTagItem {
+  id             String   @id @db.Char(32)
+  name           String   @unique @db.VarChar(64)
+  createdAt      DateTime @default(now()) @map("createdAt")
+  updatedAt      DateTime @updatedAt @map("updatedAt")
+  deletedAt      DateTime? @map("deletedAt")
+  songTags       SongTag[]
+
+  @@fulltext([name], map: "ft_song_tags_name")
+  @@map("song_tag_items")
+}
+
+// 즐겨찾기 관련 모델들
+model FavoriteList {
+  id          String   @id @db.Char(32)
+  userId      String   @map("user_id") @db.Char(32)
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  isPublic    Boolean  @default(false) @map("isPublic")
+  isDefault   Boolean  @default(false) @map("isDefault")
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items       FavoriteItem[]
+  tags        FavoriteTag[]
+
+  @@map("favorite_lists")
+}
+
+model FavoriteItem {
+  id            String   @id @db.Char(32)
+  favoriteListId String  @map("favorite_list_id") @db.Char(32)
+  itemType      String   @map("item_type") @db.VarChar(50) // 'song', 'chart', 'game', 'course'
+  itemId        String   @map("item_id") @db.Char(32)
+  title         String   @db.VarChar(255)
+  description   String?  @db.Text
+  metadata      String?  @db.Text // JSON 형태로 추가 정보 저장
+  order         Int      @default(0)
+  createdAt     DateTime @default(now()) @map("createdAt")
+  updatedAt     DateTime @updatedAt @map("updatedAt")
+  
+  favoriteList  FavoriteList @relation(fields: [favoriteListId], references: [id], onDelete: Cascade)
+  tags          FavoriteItemTag[]
+
+  @@unique([favoriteListId, itemType, itemId])
+  @@map("favorite_items")
+}
+
+model FavoriteTag {
+  id            String   @id @db.Char(32)
+  favoriteListId String  @map("favorite_list_id") @db.Char(32)
+  name          String   @db.VarChar(100)
+  color         String?  @db.VarChar(7) // hex color code
+  createdAt     DateTime @default(now()) @map("createdAt")
+  
+  favoriteList  FavoriteList @relation(fields: [favoriteListId], references: [id], onDelete: Cascade)
+  items         FavoriteItemTag[]
+
+  @@unique([favoriteListId, name])
+  @@map("favorite_tags")
+}
+
+model FavoriteItemTag {
+  id            String   @id @db.Char(32)
+  favoriteItemId String  @map("favorite_item_id") @db.Char(32)
+  favoriteTagId String   @map("favorite_tag_id") @db.Char(32)
+  createdAt     DateTime @default(now()) @map("createdAt")
+  
+  favoriteItem  FavoriteItem @relation(fields: [favoriteItemId], references: [id], onDelete: Cascade)
+  favoriteTag   FavoriteTag  @relation(fields: [favoriteTagId], references: [id], onDelete: Cascade)
+
+  @@unique([favoriteItemId, favoriteTagId])
+  @@map("favorite_item_tags")
+}
