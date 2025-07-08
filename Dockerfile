@@ -13,7 +13,9 @@ RUN npm ci && npm cache clean --force
 
 # Copy source code
 COPY src/ ./src/
-COPY prisma/ ./prisma/
+
+# Copy Prisma files
+COPY prisma ./prisma/
 
 # Generate Prisma client
 RUN npx prisma generate
