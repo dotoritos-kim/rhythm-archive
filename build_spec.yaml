@@ -35,54 +35,54 @@ steps:
       echo $APP_NAME
       echo $CONTEXT_PATH
 
-    - type: Command
+  - type: Command
     name: 'Install Dependencies'
     timeoutInSeconds: 900
     command: |
       echo "Patching system for Node.js 22 compatibility on Oracle Linux 7..."
-      
+
       # 시스템 업데이트 및 필수 패키지 설치
       yum update -y
       yum install -y epel-release
       yum groupinstall -y "Development Tools"
       yum install -y wget curl git cmake pkgconfig
-      
+
       # Node.js 22 호환성을 위한 시스템 패치
       echo "Patching system for Node.js 22 compatibility..."
-      
+
       # 최신 저장소 추가
       yum install -y centos-release-scl
       yum install -y devtoolset-8-gcc devtoolset-8-gcc-c++
-      
+
       # 환경 변수 설정
       source /opt/rh/devtoolset-8/enable
       export CC=/opt/rh/devtoolset-8/root/usr/bin/gcc
       export CXX=/opt/rh/devtoolset-8/root/usr/bin/g++
-      
+
       # 시스템 라이브러리 업데이트
       yum install -y glibc-devel libstdc++-devel
-      
+
       # Node.js 22 바이너리 직접 다운로드 (시스템 라이브러리 의존성 우회)
       echo "Downloading Node.js 22 binary..."
       cd /tmp
       wget https://nodejs.org/dist/v22.0.0/node-v22.0.0-linux-x64.tar.xz
       tar -xf node-v22.0.0-linux-x64.tar.xz
       mv node-v22.0.0-linux-x64 /opt/nodejs
-      
+
       # PATH 설정
       export PATH="/opt/nodejs/bin:$PATH"
       echo 'export PATH="/opt/nodejs/bin:$PATH"' >> ~/.bashrc
-      
+
       # Node.js 22 바이너리 사용
       echo "Using Node.js 22 binary..."
-      
+
       # Node.js 버전 확인
       echo "Node.js version: $(node --version)"
       echo "npm version: $(npm --version)"
-      
+
       # 프로젝트 디렉토리로 이동
       cd ${OCI_PRIMARY_SOURCE_DIR}
-      
+
       echo "Installing Node.js dependencies..."
       npm ci
       npm install -g @nestjs/cli
@@ -90,7 +90,7 @@ steps:
       npm install -g ts-patch
       echo "Dependencies installed successfully"
 
-    - type: Command
+  - type: Command
     name: 'Run Tests'
     timeoutInSeconds: 300
     command: |
