@@ -54,7 +54,12 @@ steps:
       echo "Using Docker container for Node.js 22 build environment..."
 
       # Docker 컨테이너에서 빌드 실행
-      docker run --rm -v $(pwd):/app -w /app node:22-alpine sh -c "
+      echo "Current directory before Docker: $(pwd)"
+      echo "Directory contents before Docker: $(ls -la)"
+
+      docker run --rm -v ${OCI_PRIMARY_SOURCE_DIR}:/app -w /app node:22-alpine sh -c "
+        echo 'Current directory in container: ' && pwd
+        echo 'Directory contents in container: ' && ls -la
         echo 'Node.js version:' && node --version
         echo 'npm version:' && npm --version
         echo 'Installing dependencies...'
@@ -67,6 +72,9 @@ steps:
         npm run swagger:generate || echo 'Swagger generation failed, creating fallback'
         echo '{\"openapi\": \"3.0.0\", \"info\": {\"title\": \"Rhythm Archive API\", \"version\": \"1.0.0\"}}' > generated/swagger.json
         echo 'Build completed successfully'
+        echo 'Final directory contents: ' && ls -la
+        echo 'Dist directory contents: ' && ls -la dist/ 2>/dev/null || echo 'dist not found'
+        echo 'Generated directory contents: ' && ls -la generated/ 2>/dev/null || echo 'generated not found'
       "
 
       # 빌드 결과 확인
