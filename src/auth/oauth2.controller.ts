@@ -7,6 +7,7 @@ import {
   ApiQuery,
   ApiBody,
 } from '@nestjs/swagger';
+import { OAuth2AuthorizeQueryDto, OAuth2TokenDto } from '../dto/oauth2.dto';
 
 /**
  * OAuth2 인증/인가 API
@@ -58,17 +59,12 @@ export class OAuth2Controller {
   })
   @Get('authorize')
   async authorize(
-    @Query('response_type') responseType: string,
-    @Query('client_id') clientId: string,
-    @Query('redirect_uri') redirectUri: string,
+    @Query() query: OAuth2AuthorizeQueryDto,
     @Req() req: Request,
     @Res() res: Response,
-    @Query('scope') scope?: string,
-    @Query('state') state?: string,
   ) {
     // TODO: 인증된 사용자라면 승인 화면, 아니면 로그인 화면으로 리다이렉트
     // 실제 구현은 OAuth2Service에서 처리
-    const query = { responseType, clientId, redirectUri, scope, state };
     return res.json({ message: 'OAuth2 Authorize Endpoint', query });
   }
 
@@ -141,17 +137,9 @@ export class OAuth2Controller {
     description: '인증 실패',
   })
   @Post('token')
-  async token(
-    @Body('grant_type') grantType: string,
-    @Body('code') code: string,
-    @Body('redirect_uri') redirectUri: string,
-    @Body('client_id') clientId: string,
-    @Res() res: Response,
-    @Body('client_secret') clientSecret?: string,
-  ) {
+  async token(@Body() body: OAuth2TokenDto, @Res() res: Response) {
     // TODO: grant_type, code 등 파라미터 검증 및 토큰 발급
     // 실제 구현은 OAuth2Service에서 처리
-    const body = { grantType, code, redirectUri, clientId, clientSecret };
     return res.json({ message: 'OAuth2 Token Endpoint', body });
   }
 }

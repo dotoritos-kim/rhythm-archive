@@ -91,10 +91,17 @@ steps:
       echo "Creating generated directory..."
       mkdir -p generated
       echo "Generated directory created: $(ls -la generated/ 2>/dev/null || echo 'Failed to create generated directory')"
-      echo "Skipping Swagger generation for now..."
-      echo "Creating dummy swagger.json file..."
-      echo '{"openapi": "3.0.0", "info": {"title": "Rhythm Archive API", "version": "1.0.0"}}' > generated/swagger.json
-      echo "Dummy Swagger file created successfully"
+      echo "Generating Swagger documentation..."
+      npm run swagger:generate
+      if [ $? -eq 0 ]; then
+        echo "Swagger documentation generated successfully"
+        echo "Generated files: $(ls -la generated/ 2>/dev/null || echo 'No generated files found')"
+      else
+        echo "Swagger generation failed with exit code $?"
+        echo "Creating fallback swagger.json file..."
+        echo '{"openapi": "3.0.0", "info": {"title": "Rhythm Archive API", "version": "1.0.0"}}' > generated/swagger.json
+        echo "Fallback Swagger file created"
+      fi
 
   - type: Command
     name: 'Define Image Tag - Commit ID'

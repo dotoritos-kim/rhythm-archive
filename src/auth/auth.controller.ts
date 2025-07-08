@@ -14,6 +14,7 @@ import {
   UserProfileDto,
   UserInfoDto,
 } from '../dto/auth.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 /**
@@ -112,7 +113,7 @@ export class AuthController {
     description: '유효하지 않은 리프레시 토큰',
   })
   @Post('refresh')
-  async refresh(@Body() body: { refreshToken: string }) {
+  async refresh(@Body() body: RefreshTokenDto) {
     return this.authService.refreshToken(body.refreshToken);
   }
 

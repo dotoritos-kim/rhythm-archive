@@ -21,6 +21,11 @@ import {
 import { FavoritesService } from './favorites.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { FavoriteItemDto } from './dto/favorite-item.dto';
+import {
+  CreateFavoriteListDto,
+  UpdateFavoriteListDto,
+  AddFavoriteItemDto,
+} from './dto/favorite-list.dto';
 
 @ApiTags('즐겨찾기')
 @ApiBearerAuth()
@@ -123,10 +128,7 @@ export class FavoritesController {
     status: 401,
     description: '인증되지 않은 요청',
   })
-  async createFavoriteList(
-    @Body() body: { name: string; description?: string },
-    @Req() req,
-  ) {
+  async createFavoriteList(@Body() body: CreateFavoriteListDto, @Req() req) {
     const userId = req.user.sub;
     return await this.favoritesService.createFavoriteList(
       userId,
@@ -259,7 +261,7 @@ export class FavoritesController {
   })
   async updateFavoriteList(
     @Param('listId') listId: string,
-    @Body() body: { name?: string; description?: string },
+    @Body() body: UpdateFavoriteListDto,
     @Req() req,
   ) {
     const userId = req.user.sub;
@@ -361,8 +363,7 @@ export class FavoritesController {
   })
   async addFavoriteItem(
     @Param('listId') listId: string,
-    @Body()
-    body: { itemType: string; itemId: string; order?: number; metadata?: any },
+    @Body() body: AddFavoriteItemDto,
     @Req() req,
   ) {
     const userId = req.user.sub;
