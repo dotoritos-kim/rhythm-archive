@@ -17,6 +17,9 @@ COPY src/ ./src/
 # Copy Prisma files
 COPY prisma ./prisma/
 
+# Create generated directory
+RUN mkdir -p generated
+
 # Generate Prisma client
 RUN npx prisma generate
 

@@ -77,6 +77,8 @@ steps:
     name: 'Generate Swagger Documentation'
     timeoutInSeconds: 120
     command: |
+      echo "Creating generated directory..."
+      mkdir -p generated
       echo "Generating Swagger documentation..."
       npm run swagger:generate
       echo "Swagger documentation generated successfully"
