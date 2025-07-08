@@ -188,3 +188,43 @@ kubectl apply -f secret.yaml
 # Pod 재시작
 kubectl rollout restart deployment/rhythm-archive -n rhythm-archive
 ```
+
+# Blue/Green 배포를 위한 네임스페이스 및 NGINX Ingress 설정
+
+## 네임스페이스
+
+- `namespace-blue.yaml`: 블루 배포용 네임스페이스
+- `namespace-green.yaml`: 그린 배포용 네임스페이스
+
+## NGINX Ingress
+
+- `ingress-blue.yaml`: 블루 네임스페이스용 인그레스 (host: blue.rhythm-archive.your-domain.com)
+- `ingress-green.yaml`: 그린 네임스페이스용 인그레스 (host: green.rhythm-archive.your-domain.com)
+
+## 사용 예시
+
+```bash
+kubectl apply -f namespace-blue.yaml
+kubectl apply -f namespace-green.yaml
+kubectl apply -f ingress-blue.yaml
+kubectl apply -f ingress-green.yaml
+```
+
+## 인그레스 이름
+
+- 블루: `rhythm-archive-blue-ingress`
+- 그린: `rhythm-archive-green-ingress`
+
+## 도메인 예시
+
+- 블루: `blue.rhythm-archive.your-domain.com`
+- 그린: `green.rhythm-archive.your-domain.com`
+
+## 서비스 이름
+
+- 두 네임스페이스 모두 `rhythm-archive-service`로 통일
+
+## 참고
+
+- 실제 배포 환경에 맞게 host 값을 수정하세요.
+- NGINX Ingress Controller가 클러스터에 설치되어 있어야 합니다.

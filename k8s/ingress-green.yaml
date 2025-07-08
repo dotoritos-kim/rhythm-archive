@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rhythm-archive-green-ingress
+  namespace: rhythm-archive-green
+  annotations:
+    kubernetes.io/ingress.class: 'nginx'
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+    - host: green.rhythm-archive.your-domain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rhythm-archive-service
+                port:
+                  number: 80
