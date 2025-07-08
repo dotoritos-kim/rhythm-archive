@@ -17,6 +17,10 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowJs": true,
+    "resolveJsonModule": true,
     "plugins": [
       {
         "transform": "typia/lib/transform"
@@ -25,7 +29,7 @@
         "transform": "@nestia/core/lib/transform",
         /**
          * Validate request body.
-         * 
+         *
          *   - "assert": Use typia.assert() function
          *   - "is": Use typia.is() function
          *   - "validate": Use typia.validate() function
@@ -36,7 +40,7 @@
         "validate": "validate",
         /**
          * Validate JSON typed response body.
-         * 
+         *
          *   - "assert": Use typia.assertStringify() function
          *   - "is": Use typia.isStringify() function
          *   - "validate": Use typia.validateStringify() function
@@ -50,5 +54,7 @@
         "transform": "@nestia/sdk/lib/transform"
       }
     ]
-  }
+  },
+  "include": ["src/**/*", "generated/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

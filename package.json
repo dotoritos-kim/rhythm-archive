@@ -10,7 +10,9 @@
     "npm": ">=8.0.0"
   },
   "scripts": {
+    "prebuild": "npx prisma generate",
     "build": "nest build",
+    "build:safe": "npm run prebuild && nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -25,7 +27,9 @@
     "prepare": "npx ts-patch install || echo 'ts-patch install failed, continuing...'",
     "swagger:generate": "nestia swagger",
     "sdk:generate": "nestia sdk",
-    "swagger:merge": "node ./generated/merge-swagger.js"
+    "swagger:merge": "node ./generated/merge-swagger.js",
+    "prisma:generate": "npx prisma generate",
+    "prisma:migrate": "npx prisma migrate deploy"
   },
   "dependencies": {
     "@nestia/core": "^7.0.0",
