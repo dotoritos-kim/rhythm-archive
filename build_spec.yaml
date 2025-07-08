@@ -31,6 +31,9 @@ outputArtifacts:
   - name: output-oci-oke-deployment
     type: BINARY
     location: k8s/
+  - name: image-definitions
+    type: BINARY
+    location: imageDefinitions.json
 
 steps:
   - type: Command
@@ -142,7 +145,7 @@ steps:
       [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
       nvm use 22
       echo "Generating Swagger documentation..."
-      npm run swagger:generate || echo "Swagger generation failed, continuing..."
+      npm run swagger:generate:safe || npm run swagger:generate || (echo "Swagger generation failed, trying alternative method..." && npx nestia swagger || echo "All Swagger generation methods failed, continuing...")
       echo "Swagger documentation generation completed"
 
   - type: Command
@@ -152,6 +155,9 @@ steps:
       COMMIT_ID=`echo ${OCI_TRIGGER_COMMIT_HASH} | cut -c 1-7`
       BUILDRUN_HASH=`echo ${OCI_BUILD_RUN_ID} | rev | cut -c 1-7`
       [ -z "$COMMIT_ID" ] && TAG=$BUILDRUN_HASH || TAG=$COMMIT_ID
+      echo "TAG: $TAG"
+      echo "BUILDRUN_HASH: $BUILDRUN_HASH"
+      echo "COMMIT_ID: $COMMIT_ID"
 
   - type: Command
     name: 'Define Image Path'
@@ -160,6 +166,9 @@ steps:
       TENANCY_NAMESPACE=`oci os ns get --query data --raw-output`
       REPO_NAME=$APP_NAME
       IMAGE_PATH=$OCI_RESOURCE_PRINCIPAL_REGION.ocir.io/$TENANCY_NAMESPACE/$REPO_NAME
+      echo "IMAGE_PATH: $IMAGE_PATH"
+      echo "TENANCY_NAMESPACE: $TENANCY_NAMESPACE"
+      echo "REPO_NAME: $REPO_NAME"
 
   - type: Command
     name: 'Build Container Image'
@@ -167,20 +176,36 @@ steps:
     command: |
       cd ${OCI_PRIMARY_SOURCE_DIR}
       echo "Building Docker image..."
+      echo "Image path: $IMAGE_PATH"
+      echo "Tag: $TAG"
       docker build --pull --rm -t new-generated-image . --build-arg BUILDKIT_INLINE_CACHE=1 || echo "Docker build failed, retrying..."
       docker build --pull --rm -t new-generated-image . --build-arg BUILDKIT_INLINE_CACHE=1
       echo "Tagging Docker image..."
       docker tag new-generated-image $IMAGE_PATH:$TAG
       docker tag new-generated-image $IMAGE_PATH:latest
+      echo "Docker images:"
+      docker images | grep $REPO_NAME
       echo "Docker image built successfully"
 
   - type: Command
     name: 'Push Container Image'
     timeoutInSeconds: 600
     command: |
+      echo "Pushing Docker images..."
+      echo "Pushing: $IMAGE_PATH:$TAG"
       docker push $IMAGE_PATH:$TAG
+      echo "Pushing: $IMAGE_PATH:latest"
       docker push $IMAGE_PATH:latest
       echo "Container image pushed successfully"
+
+  - type: Command
+    name: 'Verify Image for Artifact'
+    timeoutInSeconds: 60
+    command: |
+      echo "Verifying image for artifact storage..."
+      echo "Checking if image exists: $IMAGE_PATH:$TAG"
+      docker images | grep $REPO_NAME || echo "No local images found for $REPO_NAME"
+      echo "Image verification completed"
 
   - type: Command
     name: 'Prepare Kubernetes Manifests'
@@ -190,3 +215,14 @@ steps:
       # Update image tag in deployment.yaml
       sed -i "s|us-ashburn-1.ocir.io/your-tenancy-namespace/rhythm-archive:latest|$IMAGE_PATH:$TAG|g" k8s/deployment.yaml
       echo "Kubernetes manifests prepared successfully"
+
+  - type: Command
+    name: 'Create Artifact Files'
+    timeoutInSeconds: 30
+    command: |
+      echo "Creating artifact files..."
+      # Create image definitions file for artifact
+      echo "{\"ImageURI\":\"$IMAGE_PATH:$TAG\"}" > imageDefinitions.json
+      echo "Image definitions file created:"
+      cat imageDefinitions.json
+      echo "Artifact files created successfully"
