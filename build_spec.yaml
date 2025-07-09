@@ -44,16 +44,26 @@ steps:
 
       # Vault에서 AUTH_TOKEN 확인
       echo "=== Vault AUTH_TOKEN Check ==="
-      if [ -n "$AUTH_TOKEN" ]; then
+      echo "AUTH_TOKEN value: '$AUTH_TOKEN'"
+      echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
+
+      if [ -n "$AUTH_TOKEN" ] && [ "$AUTH_TOKEN" != "null" ] && [ ${#AUTH_TOKEN} -gt 10 ]; then
         echo "✓ AUTH_TOKEN found in Vault: ${#AUTH_TOKEN} chars"
         echo "First 10 chars: '${AUTH_TOKEN:0:10}...'"
       else
-        echo "✗ AUTH_TOKEN not found in Vault"
-        echo "Checking Vault secrets..."
+        echo "✗ AUTH_TOKEN not found or invalid in Vault"
+        echo "AUTH_TOKEN details:"
+        echo "  - Value: '$AUTH_TOKEN'"
+        echo "  - Length: ${#AUTH_TOKEN}"
+        echo "  - Is null: $([ "$AUTH_TOKEN" = "null" ] && echo "YES" || echo "NO")"
+        echo "  - Is empty: $([ -z "$AUTH_TOKEN" ] && echo "YES" || echo "NO")"
         
-        # Vault secrets 목록 확인 (디버깅용)
+        echo "Checking Vault secrets..."
         echo "Available Vault secrets:"
         oci vault secret list --vault-id "ocid1.vault.oc1.ap-seoul-1.e5uf74yaaafvi.amaaaaaa2jyz5aaajzwgacmykkbpmk6r5giyck3x46fsd6a47ock6kn7nuqa" --query "data[*].{name:display-name,ocid:id}" --output table 2>/dev/null || echo "Failed to list vault secrets"
+        
+        echo "Trying to get secret content directly..."
+        oci vault secret get --secret-id "ocid1.vaultsecret.oc1.ap-seoul-1.amaaaaaa2jyz5aaajzwgacmykkbpmk6r5giyck3x46fsd6a47ock6kn7nuqa" --query "data" --raw-output 2>/dev/null | head -c 50 || echo "Failed to get secret content"
       fi
 
       echo "APP_NAME: $APP_NAME"
@@ -232,13 +242,24 @@ steps:
       echo "=== Docker Registry Login ==="
       echo "Registry: $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
       echo "TENANCY_NAMESPACE: '$TENANCY_NAMESPACE'"
+      echo "AUTH_TOKEN value: '$AUTH_TOKEN'"
       echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
       echo "AUTH_TOKEN first 10 chars: '${AUTH_TOKEN:0:10}...'"
 
       # AUTH_TOKEN이 있으면 사용
-      if [ -n "$AUTH_TOKEN" ] && [ ${#AUTH_TOKEN} -gt 10 ] && [ "$AUTH_TOKEN" != "\${AUTH_TOKEN}" ]; then
+      if [ -n "$AUTH_TOKEN" ] && [ ${#AUTH_TOKEN} -gt 10 ] && [ "$AUTH_TOKEN" != "\${AUTH_TOKEN}" ] && [ "$AUTH_TOKEN" != "null" ]; then
         echo "=== Using AUTH_TOKEN Authentication ==="
-        echo "$AUTH_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/oracleidentitycloudservice" --password-stdin
+        echo "Attempting Docker login..."
+        
+        # 명시적으로 OCI Container Registry URL 사용
+        REGISTRY_URL="$OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
+        USERNAME="$TENANCY_NAMESPACE/oracleidentitycloudservice"
+        
+        echo "Registry URL: $REGISTRY_URL"
+        echo "Username: $USERNAME"
+        echo "Token length: ${#AUTH_TOKEN}"
+        
+        echo "$AUTH_TOKEN" | docker login $REGISTRY_URL --username "$USERNAME" --password-stdin
         LOGIN_RESULT=$?
         
         if [ $LOGIN_RESULT -eq 0 ]; then
@@ -247,24 +268,42 @@ steps:
           docker info | grep -i "username\|registry" || echo "No registry info in docker info"
         else
           echo "✗ Docker login failed with AUTH_TOKEN (exit code: $LOGIN_RESULT)"
+          echo "Docker login error details:"
+          echo "  - Registry: $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
+          echo "  - Username: $TENANCY_NAMESPACE/oracleidentitycloudservice"
+          echo "  - Token length: ${#AUTH_TOKEN}"
           echo "Build will continue - Docker push may fail, but image build should work"
         fi
       else
         echo "=== AUTH_TOKEN Not Available or Not Resolved ==="
-        echo "AUTH_TOKEN value: '$AUTH_TOKEN'"
-        echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
+        echo "AUTH_TOKEN details:"
+        echo "  - Value: '$AUTH_TOKEN'"
+        echo "  - Length: ${#AUTH_TOKEN}"
+        echo "  - Is null: $([ "$AUTH_TOKEN" = "null" ] && echo "YES" || echo "NO")"
+        echo "  - Is empty: $([ -z "$AUTH_TOKEN" ] && echo "YES" || echo "NO")"
+        echo "  - Contains placeholder: $([ "$AUTH_TOKEN" = "\${AUTH_TOKEN}" ] && echo "YES" || echo "NO")"
         echo ""
         echo "💡 TO FIX THIS ISSUE:"
-        echo "1. Go to OCI Console → DevOps → Build Pipelines"
-        echo "2. Select your pipeline → Parameters tab"
-        echo "3. Add parameter: AUTH_TOKEN (type: String)"
-        echo "4. Set value to your OCI Auth Token"
-        echo "5. Make sure the parameter is properly configured"
+        echo "1. Check OCI Vault configuration"
+        echo "2. Verify Vault Secret OCID is correct"
+        echo "3. Ensure Vault Secret contains valid Auth Token"
+        echo "4. Check build pipeline permissions to access Vault"
         echo ""
         echo "Build will continue - Docker push may fail, but image build should work"
       fi
 
       echo "Registry login completed"
+
+      # Docker 설정 확인
+      echo "=== Docker Configuration Check ==="
+      echo "Docker config location:"
+      ls -la ~/.docker/ 2>/dev/null || echo "No ~/.docker directory found"
+
+      echo "Current Docker registry configuration:"
+      docker info | grep -i "registry\|index" || echo "No registry info found"
+
+      echo "Docker login status:"
+      docker login --get-login 2>/dev/null || echo "No active login found"
 
   - type: Command
     name: 'Build Container Image'
