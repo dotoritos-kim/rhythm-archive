@@ -16,6 +16,7 @@ env:
     - TAG
     - CONTEXT_PATH
     - AUTH_TOKEN
+    - TENANCY_NAMESPACE
 
 inputArtifacts:
 
@@ -181,6 +182,12 @@ steps:
 
       REPO_NAME=$APP_NAME
       IMAGE_PATH=$OCI_RESOURCE_PRINCIPAL_REGION.ocir.io/$TENANCY_NAMESPACE/$REPO_NAME
+
+      # Export variables for next steps
+      export TENANCY_NAMESPACE
+      export IMAGE_PATH
+      export REPO_NAME
+
       echo "IMAGE_PATH: $IMAGE_PATH"
       echo "TENANCY_NAMESPACE: $TENANCY_NAMESPACE"
       echo "REPO_NAME: $REPO_NAME"
@@ -192,6 +199,12 @@ steps:
     command: |
       echo "Logging into OCI Container Registry with Auth Token..."
       echo "Registry: $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
+
+      # TENANCY_NAMESPACE 재설정 (이전 단계에서 설정되지 않았을 경우)
+      if [ -z "$TENANCY_NAMESPACE" ]; then
+        echo "TENANCY_NAMESPACE is empty, re-setting..."
+        TENANCY_NAMESPACE=$(oci os ns get --query data --raw-output 2>/dev/null || echo "cnr9rzehbbjk")
+      fi
       echo "Tenancy Namespace: $TENANCY_NAMESPACE"
 
       # OCI CLI 정보 확인
@@ -206,6 +219,7 @@ steps:
       echo "=== Environment Variables Debug ==="
       echo "OCI_BUILD_RUN_ID: $OCI_BUILD_RUN_ID"
       echo "OCI_RESOURCE_PRINCIPAL_REGION: $OCI_RESOURCE_PRINCIPAL_REGION"
+      echo "TENANCY_NAMESPACE: '$TENANCY_NAMESPACE'"
       echo "All environment variables containing 'TOKEN':"
       env | grep -i token || echo "No TOKEN variables found"
       echo "All environment variables containing 'AUTH':"
@@ -234,9 +248,12 @@ steps:
       # 사용자 이름 확인
       OCI_USER_NAME=$(oci iam user list --query 'data[0].name' --raw-output 2>/dev/null || echo "oracleidentitycloudservice")
 
-      echo "Using username: $TENANCY_NAMESPACE/$OCI_USER_NAME"
-      echo "Registry: $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
-      echo "Token length: ${#TOKEN_TO_USE}"
+      echo "Final values for Docker login:"
+      echo "  TENANCY_NAMESPACE: '$TENANCY_NAMESPACE'"
+      echo "  OCI_USER_NAME: '$OCI_USER_NAME'"
+      echo "  Username: '$TENANCY_NAMESPACE/$OCI_USER_NAME'"
+      echo "  Registry: $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
+      echo "  Token length: ${#TOKEN_TO_USE}"
 
       # Docker 로그인 시도
       if [ -n "$TOKEN_TO_USE" ]; then
