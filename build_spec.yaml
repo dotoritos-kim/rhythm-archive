@@ -213,7 +213,7 @@ steps:
       echo "TENANCY_NAMESPACE: '$TENANCY_NAMESPACE'"
       echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
 
-      # AUTH_TOKEN이 있으면 사용, 없으면 Resource Principal 사용
+      # AUTH_TOKEN이 있으면 사용
       if [ -n "$AUTH_TOKEN" ] && [ ${#AUTH_TOKEN} -gt 10 ]; then
         echo "=== Using AUTH_TOKEN Authentication ==="
         echo "$AUTH_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/oracleidentitycloudservice" --password-stdin
@@ -222,45 +222,20 @@ steps:
         if [ $LOGIN_RESULT -eq 0 ]; then
           echo "✓ Docker login successful with AUTH_TOKEN"
         else
-          echo "✗ Docker login failed with AUTH_TOKEN, trying Resource Principal..."
-        fi
-      else
-        echo "=== Using Resource Principal Authentication ==="
-        echo "AUTH_TOKEN not available, using Resource Principal..."
-        LOGIN_RESULT=1
-      fi
-
-      # AUTH_TOKEN 실패 시 Resource Principal 시도
-      if [ $LOGIN_RESULT -ne 0 ]; then
-        echo "Attempting Resource Principal authentication..."
-        
-        # OCI CLI가 Resource Principal로 인증되어 있는지 확인
-        if oci iam region list --query 'data[0].name' --raw-output 2>/dev/null >/dev/null; then
-          echo "✓ Resource Principal authentication working"
-          
-          # OCI CLI를 사용해 임시 토큰으로 Docker 로그인
-          echo "Generating temporary auth token..."
-          TEMP_TOKEN=$(oci iam auth-token create --description "DevOps-Build-$(date +%s)" --query 'data.token' --raw-output 2>/dev/null || echo "")
-          
-          if [ -n "$TEMP_TOKEN" ] && [ ${#TEMP_TOKEN} -gt 10 ]; then
-            echo "✓ Temporary auth token generated (${#TEMP_TOKEN} characters)"
-            echo "$TEMP_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/oracleidentitycloudservice" --password-stdin
-            RP_LOGIN_RESULT=$?
-            
-            if [ $RP_LOGIN_RESULT -eq 0 ]; then
-              echo "✓ Docker login successful with temporary token"
-            else
-              echo "⚠️ Docker login with temporary token failed"
-              echo "Build will continue - Docker push may fail, but image build should work"
-            fi
-          else
-            echo "⚠️ Could not generate temporary auth token"
-            echo "Build will continue - Docker push may fail, but image build should work"
-          fi
-        else
-          echo "⚠️ Resource Principal authentication not working"
+          echo "✗ Docker login failed with AUTH_TOKEN"
           echo "Build will continue - Docker push may fail, but image build should work"
         fi
+      else
+        echo "=== AUTH_TOKEN Not Available ==="
+        echo "AUTH_TOKEN is not set or too short (length: ${#AUTH_TOKEN})"
+        echo ""
+        echo "💡 TO FIX THIS ISSUE:"
+        echo "1. Go to OCI Console → DevOps → Build Pipelines"
+        echo "2. Select your pipeline → Parameters tab"
+        echo "3. Add parameter: AUTH_TOKEN (type: String)"
+        echo "4. Set value to your OCI Auth Token"
+        echo ""
+        echo "Build will continue - Docker push may fail, but image build should work"
       fi
 
       echo "Registry login completed"
