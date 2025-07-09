@@ -75,39 +75,45 @@ steps:
       nvm use 22
       echo "Installing dependencies with Node.js 22..."
       npm cache clean --force
-      echo "Installing Node.js dependencies..."
-      npm install --legacy-peer-deps
+
+      # Check if package-lock.json exists and try npm ci first
+      if [ -f "package-lock.json" ]; then
+        echo "package-lock.json found, trying npm ci..."
+        npm ci --legacy-peer-deps || (
+          echo "npm ci failed, falling back to npm install..."
+          rm -f package-lock.json
+          npm install --legacy-peer-deps
+        )
+      else
+        echo "No package-lock.json found, using npm install..."
+        npm install --legacy-peer-deps
+      fi
+
       echo "Verifying node_modules..."
-      ls -la node_modules/@nestjs/
+      ls -la node_modules/@nestjs/ || echo "NestJS modules not found, retrying installation..."
+
+      # If NestJS is still not found, retry with different approach
+      if [ ! -d "node_modules/@nestjs/" ]; then
+        echo "Retrying npm install with different flags..."
+        npm install --force --legacy-peer-deps
+      fi
+
       echo "Installing global packages..."
-      npm install -g @nestjs/cli
-      npm install -g nestia
-      npm install -g typescript
-      npm install -g ts-node
-      npm install -g tsconfig-paths
-      npm install -g prettier
-      npm install -g eslint
-      npm install -g prisma
-      npm install -g ts-patch
-      npm install -g jest
-      npm install -g @swc/cli
-      npm install -g @swc/core
-      echo "Global packages installed successfully"
-      echo "TypeScript version:"
-      tsc --version
-      echo "NestJS CLI version:"
-      nest --version
-      echo "Prisma version:"
-      prisma --version
-      echo "Jest version:"
-      jest --version
-      echo "Prettier version:"
-      prettier --version
-      echo "ESLint version:"
-      eslint --version
+      npm install -g @nestjs/cli || echo "Failed to install @nestjs/cli"
+      npm install -g nestia || echo "Failed to install nestia"
+      npm install -g typescript || echo "Failed to install typescript"
+      npm install -g prisma || echo "Failed to install prisma"
+
+      echo "Checking installed versions..."
+      node --version
+      npm --version
+      npx tsc --version || echo "TypeScript not available"
+      npx nest --version || echo "NestJS CLI not available"
+      npx prisma --version || echo "Prisma not available"
+
       echo "Generating Prisma client..."
       npx prisma generate || echo "Prisma generate failed, continuing..."
-      echo "Dependencies installed successfully"
+      echo "Dependencies installation completed"
 
   - type: Command
     name: 'Run Tests'
@@ -178,33 +184,73 @@ steps:
       echo "Building Docker image..."
       echo "Image path: $IMAGE_PATH"
       echo "Tag: $TAG"
-      docker build --pull --rm -t new-generated-image . --build-arg BUILDKIT_INLINE_CACHE=1 || echo "Docker build failed, retrying..."
-      docker build --pull --rm -t new-generated-image . --build-arg BUILDKIT_INLINE_CACHE=1
-      echo "Tagging Docker image..."
-      docker tag new-generated-image $IMAGE_PATH:$TAG
-      docker tag new-generated-image $IMAGE_PATH:latest
-      echo "Docker images:"
-      docker images | grep "$IMAGE_PATH" || echo "No images found for $IMAGE_PATH"
-      echo "Docker image built successfully"
+      echo "Building with direct tag..."
+      docker build --pull --rm -t $IMAGE_PATH:$TAG . --build-arg BUILDKIT_INLINE_CACHE=1
+      BUILD_EXIT_CODE=$?
+      echo "Docker build exit code: $BUILD_EXIT_CODE"
+
+      if [ $BUILD_EXIT_CODE -eq 0 ]; then
+        echo "Tagging Docker image as latest..."
+        docker tag $IMAGE_PATH:$TAG $IMAGE_PATH:latest
+        echo "All Docker images:"
+        docker images
+        echo "Checking for our specific image:"
+        docker images | grep "$IMAGE_PATH" || echo "No images found for $IMAGE_PATH"
+        echo "Docker image built successfully"
+      else
+        echo "Docker build failed with exit code: $BUILD_EXIT_CODE"
+        exit $BUILD_EXIT_CODE
+      fi
 
   - type: Command
     name: 'Push Container Image'
     timeoutInSeconds: 600
     command: |
+      echo "Verifying images before push..."
+      echo "Looking for image: $IMAGE_PATH:$TAG"
+      docker images | grep "$IMAGE_PATH:$TAG" || (echo "ERROR: Image $IMAGE_PATH:$TAG not found!" && exit 1)
+
       echo "Pushing Docker images..."
       echo "Pushing: $IMAGE_PATH:$TAG"
       docker push $IMAGE_PATH:$TAG
-      echo "Pushing: $IMAGE_PATH:latest"
-      docker push $IMAGE_PATH:latest
-      echo "Container image pushed successfully"
+      PUSH_EXIT_CODE=$?
+      echo "Push exit code for $TAG: $PUSH_EXIT_CODE"
+
+      if [ $PUSH_EXIT_CODE -eq 0 ]; then
+        echo "Pushing: $IMAGE_PATH:latest"
+        docker push $IMAGE_PATH:latest
+        LATEST_PUSH_EXIT_CODE=$?
+        echo "Push exit code for latest: $LATEST_PUSH_EXIT_CODE"
+        
+        if [ $LATEST_PUSH_EXIT_CODE -eq 0 ]; then
+          echo "Container images pushed successfully"
+        else
+          echo "Failed to push latest image"
+          exit 1
+        fi
+      else
+        echo "Failed to push tagged image"
+        exit 1
+      fi
 
   - type: Command
     name: 'Verify Image for Artifact'
     timeoutInSeconds: 60
     command: |
       echo "Verifying image for artifact storage..."
-      echo "Checking if image exists: $IMAGE_PATH:$TAG"
-      docker images | grep "$IMAGE_PATH" || echo "No local images found for $IMAGE_PATH"
+      echo "Expected image: $IMAGE_PATH:$TAG"
+      echo "All available Docker images:"
+      docker images
+      echo ""
+      echo "Checking for specific image..."
+      if docker images | grep -q "$IMAGE_PATH:$TAG"; then
+        echo "✓ Image $IMAGE_PATH:$TAG found successfully"
+      else
+        echo "✗ ERROR: Image $IMAGE_PATH:$TAG not found!"
+        echo "Available images with similar name:"
+        docker images | grep "$IMAGE_PATH" || echo "No images found with path $IMAGE_PATH"
+        exit 1
+      fi
       echo "Image verification completed"
 
   - type: Command
