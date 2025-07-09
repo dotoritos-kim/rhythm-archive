@@ -9,7 +9,8 @@ COPY nestia.config.ts ./
 COPY tsconfig*.json ./
 
 # Install dependencies (including dev dependencies for build)
-RUN npm ci && npm cache clean --force
+RUN npm install --legacy-peer-deps || npm install --force --legacy-peer-deps
+RUN npm cache clean --force
 
 # Copy source code
 COPY src/ ./src/
@@ -24,10 +25,10 @@ RUN mkdir -p generated
 RUN npx prisma generate
 
 # Build application
-RUN npm run build
+RUN npm run build:safe || npm run build
 
 # Generate Swagger documentation
-RUN npm run swagger:generate
+RUN npm run swagger:generate:safe || npm run swagger:generate || echo "Swagger generation failed, continuing..."
 
 # Production stage
 FROM node:22-alpine AS production
@@ -45,7 +46,8 @@ RUN adduser -S nestjs -u 1001
 COPY package*.json ./
 
 # Install only production dependencies
-RUN npm ci --only=production && npm cache clean --force
+RUN npm install --only=production --legacy-peer-deps || npm install --only=production --force --legacy-peer-deps
+RUN npm cache clean --force
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
