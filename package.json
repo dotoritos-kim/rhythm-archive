@@ -25,6 +25,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prepare": "npx ts-patch install || echo 'ts-patch install failed, continuing...'",
     "swagger:generate": "nestia swagger",
+    "swagger:generate:safe": "nestia swagger || echo 'Swagger generation failed, continuing...'",
     "sdk:generate": "nestia sdk",
     "swagger:merge": "node ./generated/merge-swagger.js"
   },

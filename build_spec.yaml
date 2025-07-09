@@ -184,7 +184,7 @@ steps:
       docker tag new-generated-image $IMAGE_PATH:$TAG
       docker tag new-generated-image $IMAGE_PATH:latest
       echo "Docker images:"
-      docker images | grep $REPO_NAME
+      docker images | grep "$IMAGE_PATH" || echo "No images found for $IMAGE_PATH"
       echo "Docker image built successfully"
 
   - type: Command
@@ -204,7 +204,7 @@ steps:
     command: |
       echo "Verifying image for artifact storage..."
       echo "Checking if image exists: $IMAGE_PATH:$TAG"
-      docker images | grep $REPO_NAME || echo "No local images found for $REPO_NAME"
+      docker images | grep "$IMAGE_PATH" || echo "No local images found for $IMAGE_PATH"
       echo "Image verification completed"
 
   - type: Command
