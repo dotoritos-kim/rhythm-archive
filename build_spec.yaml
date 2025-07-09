@@ -255,7 +255,7 @@ steps:
         
         # 명시적으로 OCI Container Registry URL 사용
         REGISTRY_URL="$OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
-        USERNAME="$TENANCY_NAMESPACE/oracleidentitycloudservice"
+        USERNAME="$TENANCY_NAMESPACE"
         
         echo "Registry URL: $REGISTRY_URL"
         echo "Username: $USERNAME"
