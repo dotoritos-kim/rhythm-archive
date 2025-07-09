@@ -7,7 +7,6 @@ env:
   variables:
     defaultAppName: 'rhythm-archive'
     defaultContextPath: '/'
-    AUTH_TOKEN: '${AUTH_TOKEN}'
   vaultVariables:
   exportedVariables:
     - BUILDRUN_HASH
@@ -226,23 +225,37 @@ steps:
       env | grep -i auth || echo "No AUTH variables found"
       echo "=================================="
 
-      # AUTH_TOKEN 검증
-      if [ -n "$AUTH_TOKEN" ]; then
-        echo "✓ AUTH_TOKEN found"
+      # AUTH_TOKEN 검증 및 처리
+      echo "Raw AUTH_TOKEN value: '$AUTH_TOKEN'"
+
+      # AUTH_TOKEN이 ${AUTH_TOKEN} 문자열인 경우 처리
+      if [ "$AUTH_TOKEN" = "\${AUTH_TOKEN}" ] || [ "$AUTH_TOKEN" = '${AUTH_TOKEN}' ]; then
+        echo "⚠️ AUTH_TOKEN contains placeholder, checking for actual parameter..."
+        # 환경변수에서 실제 값 찾기
+        ACTUAL_TOKEN=$(env | grep -E '^AUTH_TOKEN=' | cut -d'=' -f2-)
+        if [ -n "$ACTUAL_TOKEN" ] && [ "$ACTUAL_TOKEN" != "\${AUTH_TOKEN}" ]; then
+          echo "✓ Found actual AUTH_TOKEN in environment"
+          TOKEN_TO_USE="$ACTUAL_TOKEN"
+        else
+          echo "✗ ERROR: AUTH_TOKEN parameter not properly set"
+          echo "Please check your Build Pipeline Parameters configuration"
+          echo "Make sure AUTH_TOKEN is set as a parameter (not in env.variables)"
+          exit 1
+        fi
+      elif [ -n "$AUTH_TOKEN" ] && [ ${#AUTH_TOKEN} -gt 10 ]; then
+        echo "✓ AUTH_TOKEN found with proper length (${#AUTH_TOKEN} characters)"
         TOKEN_TO_USE="$AUTH_TOKEN"
       else
-        echo "✗ ERROR: AUTH_TOKEN environment variable not set"
+        echo "✗ ERROR: AUTH_TOKEN is missing or too short"
         echo "AUTH_TOKEN value: '$AUTH_TOKEN'"
-        echo "Available build parameters:"
-        env | grep -E "^[A-Z_]+=" | sort
-        
-        # Build Pipeline Parameters에서 직접 확인 시도
-        echo "Checking build pipeline parameters..."
-        
-        # 빌드가 실패하지 않도록 임시로 계속 진행
-        echo "⚠️ WARNING: AUTH_TOKEN not found, but continuing for debugging..."
-        echo "This will likely fail at Docker push step"
-        TOKEN_TO_USE=""
+        echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
+        echo "Expected length: >10 characters for a valid token"
+        echo ""
+        echo "Please ensure:"
+        echo "1. AUTH_TOKEN is set in Build Pipeline Parameters"
+        echo "2. The token is a valid OCI Auth Token"
+        echo "3. The token has not expired"
+        exit 1
       fi
 
       # 사용자 이름 확인
