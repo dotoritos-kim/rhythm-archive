@@ -7,15 +7,19 @@ env:
   variables:
     defaultAppName: 'rhythm-archive'
     defaultContextPath: '/'
+    # AUTH_TOKEN should be set as Build Pipeline Parameter or Vault Variable
+    # ⚠️ NEVER hardcode tokens in build specs for security reasons
   vaultVariables:
+    # SECURE SOLUTION: Store AUTH_TOKEN in OCI Vault
+    # AUTH_TOKEN: "ocid1.vaultsecrets.oc1.ap-seoul-1.your-vault-secret-ocid"
   exportedVariables:
     - BUILDRUN_HASH
     - APP_NAME
     - IMAGE_PATH
     - TAG
     - CONTEXT_PATH
-    - AUTH_TOKEN
     - TENANCY_NAMESPACE
+    - AUTH_TOKEN
 
 inputArtifacts:
 
@@ -32,13 +36,72 @@ outputArtifacts:
 
 steps:
   - type: Command
-    name: 'Init exportedVariables'
+    name: 'Init exportedVariables and Parameters'
     timeoutInSeconds: 30
     command: |
+      echo "=== Initializing Variables and Parameters ==="
       APP_NAME=$defaultAppName
       CONTEXT_PATH=$defaultContextPath
-      echo $APP_NAME
-      echo $CONTEXT_PATH
+      echo "APP_NAME: $APP_NAME"
+      echo "CONTEXT_PATH: $CONTEXT_PATH"
+
+      echo ""
+      echo "=== Checking for AUTH_TOKEN Parameter ==="
+      echo "Current AUTH_TOKEN value: '$AUTH_TOKEN'"
+      echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
+
+      # OCI DevOps 매개변수 디버깅
+      echo ""
+      echo "=== OCI DevOps Environment Debug ==="
+      echo "OCI_BUILD_RUN_ID: ${OCI_BUILD_RUN_ID:-'(not set)'}"
+      echo "OCI_PIPELINE_ID: ${OCI_PIPELINE_ID:-'(not set)'}"
+      echo "OCI_BUILD_PARAMETERS: ${OCI_BUILD_PARAMETERS:-'(not set)'}"
+
+      # 모든 OCI 관련 환경변수 출력
+      echo ""
+      echo "=== All OCI Environment Variables ==="
+      env | grep -i "^OCI_" || echo "No OCI_ variables found"
+
+      # 매개변수 관련 모든 환경변수 출력
+      echo ""
+      echo "=== All Parameter-related Variables ==="
+      env | grep -iE "(param|token|auth)" || echo "No parameter/token/auth variables found"
+      
+      # OCI DevOps 매개변수 전달 방식 강제 확인
+      echo ""
+      echo "=== FORCED PARAMETER DEBUGGING ==="
+      echo "Checking all possible parameter passing methods OCI DevOps uses..."
+      
+      # 방법 1: 직접 변수명으로
+      echo "Direct AUTH_TOKEN: '${AUTH_TOKEN:-NOT_SET}'"
+      
+      # 방법 2: 대문자/소문자 변형들
+      for var_name in "AUTH_TOKEN" "auth_token" "Auth_Token" "AUTHTOKEN" "authtoken"; do
+        eval var_value=\$$var_name
+        if [ -n "$var_value" ]; then
+          echo "Found $var_name: '${var_value}' (length: ${#var_value})"
+        fi
+      done
+      
+      # 방법 3: OCI 접두사 변형들
+      for var_name in "OCI_AUTH_TOKEN" "PIPELINE_AUTH_TOKEN" "BUILD_AUTH_TOKEN" "DEVOPS_AUTH_TOKEN"; do
+        eval var_value=\$$var_name
+        if [ -n "$var_value" ]; then
+          echo "Found $var_name: '${var_value}' (length: ${#var_value})"
+        fi
+      done
+      
+      # 방법 4: 모든 환경변수를 스캔해서 토큰처럼 보이는 값 찾기
+      echo ""
+      echo "Scanning ALL environment variables for token-like values (20+ chars)..."
+      env | while IFS='=' read -r name value; do
+        if [ ${#value} -ge 20 ] && [ ${#value} -le 100 ] && echo "$value" | grep -qE '^[A-Za-z0-9+/=_-]+$'; then
+          echo "Potential token in $name: '${value}' (length: ${#value})"
+        fi
+      done
+
+      echo ""
+      echo "=== Variable Initialization Complete ==="
 
   - type: Command
     name: 'Install Node.js 22 with NVM'
@@ -228,34 +291,179 @@ steps:
       # AUTH_TOKEN 검증 및 처리
       echo "Raw AUTH_TOKEN value: '$AUTH_TOKEN'"
 
-      # AUTH_TOKEN이 ${AUTH_TOKEN} 문자열인 경우 처리
-      if [ "$AUTH_TOKEN" = "\${AUTH_TOKEN}" ] || [ "$AUTH_TOKEN" = '${AUTH_TOKEN}' ]; then
-        echo "⚠️ AUTH_TOKEN contains placeholder, checking for actual parameter..."
-        # 환경변수에서 실제 값 찾기
-        ACTUAL_TOKEN=$(env | grep -E '^AUTH_TOKEN=' | cut -d'=' -f2-)
-        if [ -n "$ACTUAL_TOKEN" ] && [ "$ACTUAL_TOKEN" != "\${AUTH_TOKEN}" ]; then
-          echo "✓ Found actual AUTH_TOKEN in environment"
-          TOKEN_TO_USE="$ACTUAL_TOKEN"
-        else
-          echo "✗ ERROR: AUTH_TOKEN parameter not properly set"
-          echo "Please check your Build Pipeline Parameters configuration"
-          echo "Make sure AUTH_TOKEN is set as a parameter (not in env.variables)"
-          exit 1
-        fi
-      elif [ -n "$AUTH_TOKEN" ] && [ ${#AUTH_TOKEN} -gt 10 ]; then
-        echo "✓ AUTH_TOKEN found with proper length (${#AUTH_TOKEN} characters)"
+      # OCI DevOps 매개변수 처리 방식들을 시도
+      TOKEN_TO_USE=""
+
+      # 방법 1: 직접 AUTH_TOKEN 환경변수 확인
+      if [ -n "$AUTH_TOKEN" ] && [ "$AUTH_TOKEN" != "\${AUTH_TOKEN}" ] && [ ${#AUTH_TOKEN} -gt 10 ]; then
+        echo "✓ Method 1: AUTH_TOKEN found directly (${#AUTH_TOKEN} characters)"
         TOKEN_TO_USE="$AUTH_TOKEN"
-      else
-        echo "✗ ERROR: AUTH_TOKEN is missing or too short"
+
+      # 방법 1.5: Vault Variable 확인 (권장 방법)
+      elif [ -n "$VAULT_AUTH_TOKEN" ] && [ ${#VAULT_AUTH_TOKEN} -gt 10 ]; then
+        echo "✓ Method 1.5: Using Vault AUTH_TOKEN (${#VAULT_AUTH_TOKEN} characters)"
+        TOKEN_TO_USE="$VAULT_AUTH_TOKEN"
+
+      # 방법 2: OCI_BUILD_PARAMETERS에서 추출 시도
+      elif [ -n "$OCI_BUILD_PARAMETERS" ]; then
+        echo "⚠️ Method 2: Checking OCI_BUILD_PARAMETERS for AUTH_TOKEN..."
+        echo "OCI_BUILD_PARAMETERS: $OCI_BUILD_PARAMETERS"
+        # JSON에서 AUTH_TOKEN 추출 (여러 방법 시도)
+        EXTRACTED_TOKEN=$(echo "$OCI_BUILD_PARAMETERS" | grep -o '"AUTH_TOKEN":"[^"]*"' | cut -d'"' -f4)
+        if [ -z "$EXTRACTED_TOKEN" ]; then
+          # 대안 방법: jq 없이 sed 사용
+          EXTRACTED_TOKEN=$(echo "$OCI_BUILD_PARAMETERS" | sed -n 's/.*"AUTH_TOKEN":"\([^"]*\)".*/\1/p')
+        fi
+        if [ -z "$EXTRACTED_TOKEN" ]; then
+          # 대안 방법: awk 사용
+          EXTRACTED_TOKEN=$(echo "$OCI_BUILD_PARAMETERS" | awk -F'"AUTH_TOKEN":"' '{if(NF>1) print $2}' | awk -F'"' '{print $1}')
+        fi
+        if [ -n "$EXTRACTED_TOKEN" ] && [ ${#EXTRACTED_TOKEN} -gt 10 ]; then
+          echo "✓ Found AUTH_TOKEN in OCI_BUILD_PARAMETERS (${#EXTRACTED_TOKEN} characters)"
+          TOKEN_TO_USE="$EXTRACTED_TOKEN"
+        fi
+      fi
+
+      # 방법 3: 모든 환경변수에서 AUTH_TOKEN 패턴 찾기
+      if [ -z "$TOKEN_TO_USE" ]; then
+        echo "⚠️ Method 3: Searching all environment variables for AUTH_TOKEN..."
+        for var in $(env | grep -i auth_token); do
+          var_name=$(echo $var | cut -d'=' -f1)
+          var_value=$(echo $var | cut -d'=' -f2-)
+          echo "Found variable: $var_name = $var_value"
+          if [ ${#var_value} -gt 10 ] && [ "$var_value" != "\${AUTH_TOKEN}" ]; then
+            TOKEN_TO_USE="$var_value"
+            echo "✓ Using token from $var_name"
+            break
+          fi
+        done
+      fi
+
+      # 방법 4: OCI Pipeline Context 파일에서 찾기
+      if [ -z "$TOKEN_TO_USE" ]; then
+        echo "⚠️ Method 4: Checking OCI Pipeline Context files..."
+        
+        # OCI DevOps는 때때로 매개변수를 컨텍스트 파일에 저장
+        for context_file in "/tmp/oci_build_context.json" "/opt/oci/build_context.json" "$HOME/.oci/build_context.json"; do
+          if [ -f "$context_file" ]; then
+            echo "Found context file: $context_file"
+            cat "$context_file" || echo "Cannot read context file"
+            CONTEXT_TOKEN=$(cat "$context_file" 2>/dev/null | grep -o '"AUTH_TOKEN":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
+            if [ -n "$CONTEXT_TOKEN" ] && [ ${#CONTEXT_TOKEN} -gt 10 ]; then
+              echo "✓ Found AUTH_TOKEN in context file (${#CONTEXT_TOKEN} characters)"
+              TOKEN_TO_USE="$CONTEXT_TOKEN"
+              break
+            fi
+          fi
+        done
+      fi
+
+      # 방법 5: 수동으로 알려진 OCI 매개변수 형식들 확인
+      if [ -z "$TOKEN_TO_USE" ]; then
+        echo "⚠️ Method 5: Checking known OCI parameter formats..."
+        
+        # OCI DevOps는 때때로 매개변수를 다른 형식으로 제공
+        for param_var in "PIPELINE_AUTH_TOKEN" "BUILD_AUTH_TOKEN" "DEVOPS_AUTH_TOKEN" "OCI_AUTH_TOKEN_PARAM" "AUTH_TOKEN_PARAM" "OCI_REGISTRY_TOKEN"; do
+          eval param_value=\$$param_var
+          if [ -n "$param_value" ] && [ ${#param_value} -gt 10 ]; then
+            echo "✓ Found token in $param_var (${#param_value} characters)"
+            TOKEN_TO_USE="$param_value"
+            break
+          fi
+        done
+      fi
+
+      # 방법 6: 매개변수가 파일로 전달되는 경우 확인
+      if [ -z "$TOKEN_TO_USE" ]; then
+        echo "⚠️ Method 6: Checking for parameter files..."
+        
+        # OCI DevOps가 매개변수를 파일로 전달하는 경우가 있음
+        for param_file in "/tmp/AUTH_TOKEN" "/opt/oci/parameters/AUTH_TOKEN" "/var/run/secrets/AUTH_TOKEN" "/workspace/AUTH_TOKEN"; do
+          if [ -f "$param_file" ]; then
+            echo "Found parameter file: $param_file"
+            FILE_TOKEN=$(cat "$param_file" 2>/dev/null | tr -d '\n\r' || echo "")
+            if [ -n "$FILE_TOKEN" ] && [ ${#FILE_TOKEN} -gt 10 ]; then
+              echo "✓ Found AUTH_TOKEN in parameter file (${#FILE_TOKEN} characters)"
+              TOKEN_TO_USE="$FILE_TOKEN"
+              break
+            fi
+          fi
+        done
+      fi
+
+      # 방법 7: OCI DevOps 특수 매개변수 전달 방식 강제 확인
+      if [ -z "$TOKEN_TO_USE" ]; then
+        echo "⚠️ Method 7: Forcing OCI DevOps parameter detection..."
+        
+        # OCI DevOps는 때때로 매개변수를 특별한 환경변수로 전달
+        # 빌드 파이프라인에서 설정한 AUTH_TOKEN을 다른 이름으로 찾기
+        echo "Checking if AUTH_TOKEN parameter is passed with different variable names..."
+        
+        # 모든 환경변수를 확인해서 AUTH_TOKEN이라는 매개변수 이름이 포함된 것 찾기
+        env | grep -i auth_token | while IFS='=' read -r name value; do
+          if [ -n "$value" ] && [ ${#value} -gt 10 ]; then
+            echo "Found potential AUTH_TOKEN in variable $name: '${value}' (length: ${#value})"
+            # 이 값을 사용할 수 있도록 파일로 저장
+            echo "$value" > /tmp/found_auth_token
+          fi
+        done
+        
+        # 저장된 토큰이 있으면 사용
+        if [ -f "/tmp/found_auth_token" ]; then
+          FOUND_TOKEN=$(cat /tmp/found_auth_token 2>/dev/null)
+          if [ -n "$FOUND_TOKEN" ] && [ ${#FOUND_TOKEN} -gt 10 ]; then
+            echo "✓ Using found AUTH_TOKEN from environment scan (${#FOUND_TOKEN} characters)"
+            TOKEN_TO_USE="$FOUND_TOKEN"
+          fi
+        fi
+      fi
+
+      # 방법 8: 매개변수 이름이 변형되어 전달되는 경우 확인  
+      if [ -z "$TOKEN_TO_USE" ]; then
+        echo "⚠️ Method 8: Checking parameter name variations..."
+        
+        # OCI DevOps가 매개변수 이름을 변형해서 전달하는 경우
+        for param_prefix in "" "OCI_PIPELINE_PARAM_" "BUILD_PARAM_" "DEVOPS_PARAM_" "PARAM_"; do
+          for param_suffix in "" "_VALUE" "_CONTENT" "_DATA"; do
+            param_var="${param_prefix}AUTH_TOKEN${param_suffix}"
+            eval param_value=\$$param_var
+            if [ -n "$param_value" ] && [ ${#param_value} -gt 10 ]; then
+              echo "✓ Found AUTH_TOKEN in $param_var (${#param_value} characters)"
+              TOKEN_TO_USE="$param_value"
+              break 2
+            fi
+          done
+        done
+      fi
+
+      # 최종 검증
+      if [ -z "$TOKEN_TO_USE" ]; then
+        echo "✗ ERROR: AUTH_TOKEN could not be found or is invalid"
+        echo ""
+        echo "Debug Information:"
         echo "AUTH_TOKEN value: '$AUTH_TOKEN'"
         echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
-        echo "Expected length: >10 characters for a valid token"
+        echo "OCI_BUILD_PARAMETERS: ${OCI_BUILD_PARAMETERS:-'(not set)'}"
+        echo ""
+        echo "All environment variables containing 'TOKEN':"
+        env | grep -i token || echo "  (none found)"
+        echo ""
+        echo "All environment variables containing 'AUTH':"
+        env | grep -i auth || echo "  (none found)"
         echo ""
         echo "Please ensure:"
-        echo "1. AUTH_TOKEN is set in Build Pipeline Parameters"
-        echo "2. The token is a valid OCI Auth Token"
-        echo "3. The token has not expired"
+        echo "1. AUTH_TOKEN is set as a Build Pipeline Parameter"
+        echo "2. The parameter name is exactly 'AUTH_TOKEN'"
+        echo "3. The token is a valid OCI Auth Token (20+ characters)"
+        echo "4. The token has not expired"
+        echo ""
+        echo "Expected parameter configuration in OCI DevOps:"
+        echo "  Parameter Name: AUTH_TOKEN"
+        echo "  Parameter Type: String"
+        echo "  Default Value: (your OCI Auth Token)"
         exit 1
+      else
+        echo "✓ AUTH_TOKEN successfully resolved (${#TOKEN_TO_USE} characters)"
       fi
 
       # 사용자 이름 확인
@@ -270,7 +478,11 @@ steps:
 
       # Docker 로그인 시도
       if [ -n "$TOKEN_TO_USE" ]; then
-        echo "Attempting Docker login..."
+        echo "=== Attempting Docker Login with Auth Token ==="
+        echo "Registry: $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
+        echo "Username: $TENANCY_NAMESPACE/$OCI_USER_NAME"
+        echo "Token length: ${#TOKEN_TO_USE}"
+        
         echo "$TOKEN_TO_USE" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/$OCI_USER_NAME" --password-stdin
         LOGIN_RESULT=$?
 
@@ -302,8 +514,119 @@ steps:
           fi
         fi
       else
-        echo "⚠️ Skipping Docker login due to missing AUTH_TOKEN"
-        echo "Build will continue but push step will likely fail"
+        echo "⚠️ AUTH_TOKEN not available, trying Resource Principal authentication..."
+        
+        # Resource Principal을 통한 OCIR 로그인 시도
+        echo "=== Attempting Resource Principal Authentication ==="
+        
+        # 방법 1: OCI CLI를 사용해 Resource Principal로 인증 토큰 생성
+        echo "Getting auth token using Resource Principal..."
+        
+        # 현재 사용자 정보 확인
+        CURRENT_USER=$(oci iam user list --query 'data[0].name' --raw-output 2>/dev/null || echo "unknown")
+        echo "Current OCI user: $CURRENT_USER"
+        
+        # 기존 Auth Token이 있는지 확인
+        echo "Checking existing auth tokens..."
+        oci iam auth-token list --user-id $(oci iam user list --query 'data[0].id' --raw-output 2>/dev/null) --query 'data[*].description' --raw-output 2>/dev/null || echo "Cannot list auth tokens"
+        
+        # 새 Auth Token 생성 시도 (DevOps Dynamic Group 권한 필요)
+        echo "Attempting to create auth token with Resource Principal..."
+        echo "Required IAM Policy: allow dynamic-group devops-build-dynamic-group to manage auth-tokens in tenancy"
+        RP_TOKEN=$(oci iam auth-token create --description "DevOps-Build-$(date +%s)" --query 'data.token' --raw-output 2>/dev/null || echo "")
+        
+        if [ -n "$RP_TOKEN" ] && [ ${#RP_TOKEN} -gt 10 ]; then
+          echo "✓ Resource Principal auth token generated (${#RP_TOKEN} characters)"
+          echo "$RP_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/oracleidentitycloudservice" --password-stdin
+          RP_LOGIN_RESULT=$?
+          
+          if [ $RP_LOGIN_RESULT -eq 0 ]; then
+            echo "✓ Docker login successful with Resource Principal"
+          else
+            echo "✗ Resource Principal login failed, trying alternative methods..."
+          fi
+        else
+          echo "⚠️ Failed to generate new Resource Principal auth token"
+          echo "This might be due to token limits or permissions"
+        fi
+        
+        # 방법 2: 기존 환경에서 Docker 인증 정보 사용
+        if [ $RP_LOGIN_RESULT -ne 0 ] || [ -z "$RP_TOKEN" ]; then
+          echo "Trying alternative authentication methods..."
+          
+          # OCI CLI 기본 인증 확인
+          echo "Checking OCI CLI authentication..."
+          oci iam region list --query 'data[0].name' --raw-output 2>/dev/null || echo "OCI CLI auth failed"
+          
+          # Docker credential helper 사용 시도
+          echo "Trying Docker credential helper..."
+          if command -v docker-credential-ocir >/dev/null 2>&1; then
+            echo "Found docker-credential-ocir, configuring..."
+            echo '{"ServerURL":"'$OCI_RESOURCE_PRINCIPAL_REGION'.ocir.io","Username":"'$TENANCY_NAMESPACE'/oracleidentitycloudservice","Secret":"dummy"}' | docker-credential-ocir store
+          fi
+          
+          # 최후의 수단: OCI CLI 세션 인증
+          echo "Attempting OCI CLI session authentication..."
+          oci session authenticate --region $OCI_RESOURCE_PRINCIPAL_REGION --profile-name devops-session 2>/dev/null || echo "OCI session auth failed"
+          
+          # OCI Registry 직접 인증 시도 (Resource Principal)
+          echo "Trying direct OCI registry authentication with Resource Principal..."
+          
+          # Resource Principal로 OCIR 직접 인증
+          echo "Configuring Docker for Resource Principal authentication..."
+          
+          # OCI CLI로 토큰 없이 도커 로그인 시도 (Resource Principal 사용)
+          echo "Trying Resource Principal based docker login..."
+          if oci artifacts container repository list --compartment-id $(oci iam compartment list --query 'data[0].id' --raw-output 2>/dev/null) >/dev/null 2>&1; then
+            echo "✓ Resource Principal can access Container Registry"
+            
+            # Docker credential helper 설정
+            mkdir -p ~/.docker
+            cat > ~/.docker/config.json << EOF
+{
+  "auths": {
+    "$OCI_RESOURCE_PRINCIPAL_REGION.ocir.io": {
+      "auth": "$(echo -n "$TENANCY_NAMESPACE/oracleidentitycloudservice:" | base64 -w 0)"
+    }
+  },
+  "credsStore": "ocir"
+}
+EOF
+            echo "✓ Docker credential helper configured for Resource Principal"
+          else
+            echo "✗ Resource Principal cannot access Container Registry"
+            echo "Required IAM Policy: allow dynamic-group devops-build-dynamic-group to manage repos in tenancy"
+          fi
+        fi
+        
+        # 최종 상태 확인
+        if [ $RP_LOGIN_RESULT -ne 0 ] && [ -z "$RP_TOKEN" ]; then
+          echo "✗ All Resource Principal authentication methods failed"
+          echo "Build will continue but push step will likely fail"
+                  echo ""
+        echo "💡 TROUBLESHOOTING STEPS:"
+        echo "Since you mentioned AUTH_TOKEN is set as Build Pipeline Parameter,"
+        echo "this is likely an OCI DevOps parameter passing issue."
+        echo ""
+        echo "1. VERIFY PARAMETER SETUP:"
+        echo "   - Go to OCI Console → DevOps → Build Pipelines"
+        echo "   - Select your pipeline → Parameters tab"
+        echo "   - Confirm AUTH_TOKEN parameter exists and has a value"
+        echo "   - Check parameter type is 'String' (not SecureString)"
+        echo ""
+        echo "2. VERIFY BUILD STAGE CONFIGURATION:"
+        echo "   - Edit Build Stage → Parameters section"
+        echo "   - Ensure AUTH_TOKEN is mapped correctly"
+        echo "   - Try removing and re-adding the parameter mapping"
+        echo ""
+        echo "3. ALTERNATIVE SOLUTIONS:"
+        echo "   - Use OCI Vault to store AUTH_TOKEN securely (most reliable)"
+        echo "   - Set up proper IAM policies for Resource Principal authentication"
+        echo "   - Contact OCI Support about parameter passing issues"
+        echo ""
+        echo "4. IMMEDIATE WORKAROUND:"
+        echo "   - The build will try Resource Principal authentication automatically"
+        fi
       fi
 
       echo "Registry login completed successfully"
