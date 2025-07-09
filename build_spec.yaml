@@ -3,13 +3,13 @@ component: build
 timeoutInSeconds: 6000
 runAs: root
 shell: bash
-  env:
-    variables:
-      defaultAppName: 'rhythm-archive'
-      defaultContextPath: '/'
+env:
+  variables:
+    defaultAppName: 'rhythm-archive'
+    defaultContextPath: '/'
   vaultVariables:
     # SECURE SOLUTION: Store AUTH_TOKEN in OCI Vault
-    AUTH_TOKEN: "ocid1.vaultsecret.oc1.ap-seoul-1.amaaaaaa2jyz5aaajzwgacmykkbpmk6r5giyck3x46fsd6a47ock6kn7nuqa"
+    AUTH_TOKEN: 'ocid1.vaultsecret.oc1.ap-seoul-1.amaaaaaa2jyz5aaajzwgacmykkbpmk6r5giyck3x46fsd6a47ock6kn7nuqa'
   exportedVariables:
     - BUILDRUN_HASH
     - APP_NAME
@@ -42,7 +42,7 @@ steps:
       echo "=== Initializing Variables and Parameters ==="
       APP_NAME=$defaultAppName
       CONTEXT_PATH=$defaultContextPath
-      
+
       # Vault에서 AUTH_TOKEN 확인
       echo "=== Vault AUTH_TOKEN Check ==="
       if [ -n "$AUTH_TOKEN" ]; then
@@ -56,7 +56,7 @@ steps:
         echo "Available Vault secrets:"
         oci vault secret list --vault-id "ocid1.vault.oc1.ap-seoul-1.e5uf74yaaafvi.amaaaaaa2jyz5aaajzwgacmykkbpmk6r5giyck3x46fsd6a47ock6kn7nuqa" --query "data[*].{name:display-name,ocid:id}" --output table 2>/dev/null || echo "Failed to list vault secrets"
       fi
-      
+
       echo "APP_NAME: $APP_NAME"
       echo "CONTEXT_PATH: $CONTEXT_PATH"
 
