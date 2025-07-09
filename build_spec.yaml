@@ -262,82 +262,16 @@ steps:
         echo "Token length: ${#AUTH_TOKEN}"
         echo "Token preview: '${AUTH_TOKEN:0:5}...${AUTH_TOKEN: -5}'"
         
-        # OCI CLI로 인증 테스트
-        echo "=== Testing OCI CLI Authentication ==="
-        echo "Testing OCI CLI access to Container Registry..."
-        oci artifacts container repository list --compartment-id $OCI_COMPARTMENT_ID --limit 5 --query "data[*].{name:display-name,public:is-public}" --output table 2>/dev/null || echo "OCI CLI access failed"
-        
-        # Docker login 시도 (여러 방법)
-        echo "=== Docker Login Attempts ==="
-        
-        # 방법 1: 기본 방법
-        echo "Method 1: Standard docker login"
+        # Docker login 시도
+        echo "Attempting Docker login to OCI Container Registry..."
         echo "$AUTH_TOKEN" | docker login $REGISTRY_URL --username "$USERNAME" --password-stdin
-        LOGIN_RESULT_1=$?
-        
-        if [ $LOGIN_RESULT_1 -eq 0 ]; then
-          echo "✓ Method 1 successful"
-          LOGIN_RESULT=0
-        else
-          echo "✗ Method 1 failed, trying Method 2"
-          
-          # 방법 2: 직접 패스워드
-          echo "Method 2: Direct password"
-          docker login $REGISTRY_URL --username "$USERNAME" --password "$AUTH_TOKEN"
-          LOGIN_RESULT_2=$?
-          
-          if [ $LOGIN_RESULT_2 -eq 0 ]; then
-            echo "✓ Method 2 successful"
-            LOGIN_RESULT=0
-          else
-            echo "✗ Method 2 failed, trying Method 3"
-            
-            # 방법 3: 다른 사용자명 형식
-            echo "Method 3: Alternative username format"
-            docker login $REGISTRY_URL --username "$TENANCY_NAMESPACE" --password "$AUTH_TOKEN"
-            LOGIN_RESULT_3=$?
-            
-            if [ $LOGIN_RESULT_3 -eq 0 ]; then
-              echo "✓ Method 3 successful"
-              LOGIN_RESULT=0
-            else
-              echo "✗ All methods failed"
-              LOGIN_RESULT=1
-            fi
-          fi
-        fi
         LOGIN_RESULT=$?
         
         if [ $LOGIN_RESULT -eq 0 ]; then
-          echo "✓ Docker login successful!"
-          echo "=== Authentication Verification ==="
-          echo "Testing authentication with docker info..."
-          docker info | grep -i "username\|registry" || echo "No registry info in docker info"
-          
-          echo "Testing repository access..."
-          docker pull hello-world 2>/dev/null || echo "Docker pull test skipped"
-          
-          echo "Docker login status:"
-          docker login --get-login 2>/dev/null || echo "No active login found"
-          
-          echo "✓ Authentication completed successfully"
+          echo "✓ Docker login successful"
         else
-          echo "✗ All Docker login methods failed"
-          echo "=== Troubleshooting Information ==="
-          echo "Registry: $REGISTRY_URL"
-          echo "Username tried: $USERNAME"
-          echo "Alternative username: $TENANCY_NAMESPACE"
-          echo "Token length: ${#AUTH_TOKEN}"
-          echo "Token preview: '${AUTH_TOKEN:0:5}...${AUTH_TOKEN: -5}'"
-          
-          echo ""
-          echo "💡 POSSIBLE SOLUTIONS:"
-          echo "1. Check if AUTH_TOKEN is valid and not expired"
-          echo "2. Verify Container Registry permissions"
-          echo "3. Ensure repository exists: $REGISTRY_URL"
-          echo "4. Try creating a new Auth Token"
-          echo ""
-          echo "Build will continue - Docker push may fail, but image build should work"
+          echo "✗ Docker login failed - exiting build"
+          exit 1
         fi
       else
         echo "=== AUTH_TOKEN Not Available or Not Resolved ==="
@@ -357,18 +291,7 @@ steps:
         echo "Build will continue - Docker push may fail, but image build should work"
       fi
 
-      echo "Registry login completed"
-
-      # Docker 설정 확인
-      echo "=== Docker Configuration Check ==="
-      echo "Docker config location:"
-      ls -la ~/.docker/ 2>/dev/null || echo "No ~/.docker directory found"
-
-      echo "Current Docker registry configuration:"
-      docker info | grep -i "registry\|index" || echo "No registry info found"
-
-      echo "Docker login status:"
-      docker login --get-login 2>/dev/null || echo "No active login found"
+            echo "Registry login completed"
 
   - type: Command
     name: 'Build Container Image'
