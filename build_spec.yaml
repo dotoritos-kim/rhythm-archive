@@ -7,6 +7,7 @@ env:
   variables:
     defaultAppName: 'rhythm-archive'
     defaultContextPath: '/'
+    AUTH_TOKEN: '${AUTH_TOKEN}'
   vaultVariables:
   exportedVariables:
     - BUILDRUN_HASH
@@ -201,26 +202,33 @@ steps:
       echo "Checking for AUTH_TOKEN..."
       echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
 
+      # 모든 환경변수 확인 (디버깅용)
+      echo "=== Environment Variables Debug ==="
+      echo "OCI_BUILD_RUN_ID: $OCI_BUILD_RUN_ID"
+      echo "OCI_RESOURCE_PRINCIPAL_REGION: $OCI_RESOURCE_PRINCIPAL_REGION"
+      echo "All environment variables containing 'TOKEN':"
+      env | grep -i token || echo "No TOKEN variables found"
+      echo "All environment variables containing 'AUTH':"
+      env | grep -i auth || echo "No AUTH variables found"
+      echo "=================================="
+
       # AUTH_TOKEN 검증
       if [ -n "$AUTH_TOKEN" ]; then
         echo "✓ AUTH_TOKEN found"
         TOKEN_TO_USE="$AUTH_TOKEN"
       else
         echo "✗ ERROR: AUTH_TOKEN environment variable not set"
-        echo "Available environment variables:"
-        env | grep -i "token\|password\|auth" | head -10 || echo "No auth-related variables found"
+        echo "AUTH_TOKEN value: '$AUTH_TOKEN'"
+        echo "Available build parameters:"
+        env | grep -E "^[A-Z_]+=" | sort
         
-        # Resource Principal을 사용한 대안 로그인 시도
-        echo "Attempting Resource Principal authentication..."
-        oci auth authenticate --auth resource_principal || echo "Resource Principal auth failed"
+        # Build Pipeline Parameters에서 직접 확인 시도
+        echo "Checking build pipeline parameters..."
         
-        # Docker config 확인
-        echo "Checking Docker config..."
-        docker info || echo "Docker not available or not configured"
-        
-        echo "✗ ERROR: AUTH_TOKEN is required"
-        echo "Please ensure AUTH_TOKEN is set in your build pipeline parameters"
-        exit 1
+        # 빌드가 실패하지 않도록 임시로 계속 진행
+        echo "⚠️ WARNING: AUTH_TOKEN not found, but continuing for debugging..."
+        echo "This will likely fail at Docker push step"
+        TOKEN_TO_USE=""
       fi
 
       # 사용자 이름 확인
@@ -231,35 +239,41 @@ steps:
       echo "Token length: ${#TOKEN_TO_USE}"
 
       # Docker 로그인 시도
-      echo "$TOKEN_TO_USE" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/$OCI_USER_NAME" --password-stdin
-      LOGIN_RESULT=$?
+      if [ -n "$TOKEN_TO_USE" ]; then
+        echo "Attempting Docker login..."
+        echo "$TOKEN_TO_USE" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/$OCI_USER_NAME" --password-stdin
+        LOGIN_RESULT=$?
 
-      if [ $LOGIN_RESULT -eq 0 ]; then
-        echo "✓ Docker login successful with Auth Token"
-      else
-        echo "✗ Docker login failed with Auth Token (exit code: $LOGIN_RESULT)"
-        echo "Trying alternative username format..."
-        echo "$TOKEN_TO_USE" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/oracleidentitycloudservice" --password-stdin
-        ALT_LOGIN_RESULT=$?
-        if [ $ALT_LOGIN_RESULT -eq 0 ]; then
-          echo "✓ Docker login successful with alternative username"
+        if [ $LOGIN_RESULT -eq 0 ]; then
+          echo "✓ Docker login successful with Auth Token"
         else
-          echo "✗ All Docker login attempts failed"
-          echo "Trying with different username formats..."
-          
-          # 추가 대안 사용자명 시도
-          for username in "$TENANCY_NAMESPACE/oracleidentitycloudservice" "$TENANCY_NAMESPACE/cloudnative" "$TENANCY_NAMESPACE/devops"; do
-            echo "Trying username: $username"
-            echo "$TOKEN_TO_USE" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$username" --password-stdin
-            if [ $? -eq 0 ]; then
-              echo "✓ Docker login successful with username: $username"
-              break
-            fi
-          done
-          
-          # 최종 확인
-          docker info | grep "Username" || echo "Docker login status unknown"
+          echo "✗ Docker login failed with Auth Token (exit code: $LOGIN_RESULT)"
+          echo "Trying alternative username format..."
+          echo "$TOKEN_TO_USE" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/oracleidentitycloudservice" --password-stdin
+          ALT_LOGIN_RESULT=$?
+          if [ $ALT_LOGIN_RESULT -eq 0 ]; then
+            echo "✓ Docker login successful with alternative username"
+          else
+            echo "✗ All Docker login attempts failed"
+            echo "Trying with different username formats..."
+            
+            # 추가 대안 사용자명 시도
+            for username in "$TENANCY_NAMESPACE/oracleidentitycloudservice" "$TENANCY_NAMESPACE/cloudnative" "$TENANCY_NAMESPACE/devops"; do
+              echo "Trying username: $username"
+              echo "$TOKEN_TO_USE" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$username" --password-stdin
+              if [ $? -eq 0 ]; then
+                echo "✓ Docker login successful with username: $username"
+                break
+              fi
+            done
+            
+            # 최종 확인
+            docker info | grep "Username" || echo "Docker login status unknown"
+          fi
         fi
+      else
+        echo "⚠️ Skipping Docker login due to missing AUTH_TOKEN"
+        echo "Build will continue but push step will likely fail"
       fi
 
       echo "Registry login completed successfully"
