@@ -7,7 +7,7 @@ env:
   variables:
     defaultAppName: 'rhythm-archive'
     defaultContextPath: '/'
-    # OCI DevOps 매개변수는 자동으로 환경변수로 전달됩니다
+    AUTH_TOKEN: ${AUTH_TOKEN}
   vaultVariables:
     # SECURE SOLUTION: Store AUTH_TOKEN in OCI Vault
     # AUTH_TOKEN: "ocid1.vaultsecrets.oc1.ap-seoul-1.your-vault-secret-ocid"
@@ -45,59 +45,12 @@ steps:
       echo "CONTEXT_PATH: $CONTEXT_PATH"
 
       echo ""
-      echo "=== Checking for AUTH_TOKEN Parameter ==="
-      echo "Current AUTH_TOKEN value: '$AUTH_TOKEN'"
+      echo "=== Environment Variables Debug ==="
+      echo "AUTH_TOKEN: '$AUTH_TOKEN'"
       echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
-
-      # OCI DevOps 매개변수 디버깅
-      echo ""
-      echo "=== OCI DevOps Environment Debug ==="
-      echo "OCI_BUILD_RUN_ID: ${OCI_BUILD_RUN_ID:-'(not set)'}"
-      echo "OCI_PIPELINE_ID: ${OCI_PIPELINE_ID:-'(not set)'}"
-      echo "OCI_BUILD_PARAMETERS: ${OCI_BUILD_PARAMETERS:-'(not set)'}"
-
-      # 모든 OCI 관련 환경변수 출력
-      echo ""
-      echo "=== All OCI Environment Variables ==="
-      env | grep -i "^OCI_" || echo "No OCI_ variables found"
-
-            # 매개변수 관련 모든 환경변수 출력
-      echo ""
-      echo "=== All Parameter-related Variables ==="
-      env | grep -iE "(param|token|auth)" || echo "No parameter/token/auth variables found"
-
-            # OCI DevOps 매개변수 확인
-      echo ""
-      echo "=== CHECKING AUTH_TOKEN PARAMETER ==="
-      echo "AUTH_TOKEN should be automatically available as environment variable"
-
-      # 직접 AUTH_TOKEN 확인
-      echo "Direct AUTH_TOKEN check: '${AUTH_TOKEN:-NOT_SET}'"
-      echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
-
-      # 매개변수 값이 설정되어 있다면 사용
-      if [ -n "$AUTH_TOKEN" ] && [ ${#AUTH_TOKEN} -gt 10 ]; then
-        echo "✓ AUTH_TOKEN found with length ${#AUTH_TOKEN} characters"
-        echo "$AUTH_TOKEN" > /tmp/auth_token_found
-        echo "AUTH_TOKEN" > /tmp/auth_token_var_name
-      else
-        echo "⚠️ AUTH_TOKEN parameter not found or empty"
-        echo "Checking alternative variable names..."
-        
-        # 대안 변수명들 확인
-        for var_name in "PIPELINE_AUTH_TOKEN" "BUILD_AUTH_TOKEN" "DEVOPS_AUTH_TOKEN" "OCI_AUTH_TOKEN"; do
-          eval var_value=\$$var_name
-          if [ -n "$var_value" ] && [ ${#var_value} -gt 10 ]; then
-            echo "✓ Found token in $var_name: '${var_value}' (length: ${#var_value})"
-            echo "$var_value" > /tmp/auth_token_found
-            echo "$var_name" > /tmp/auth_token_var_name
-            break
-          fi
-        done
-      fi
-
-      echo ""
-      echo "=== Variable Initialization Complete ==="
+      echo "==== ENV DUMP ===="
+      env | sort
+      echo "=================="
 
   - type: Command
     name: 'Install Node.js 22 with NVM'
@@ -255,256 +208,62 @@ steps:
     name: 'Login to OCI Container Registry with Auth Token'
     timeoutInSeconds: 60
     command: |
-      echo "Logging into OCI Container Registry with Auth Token..."
+      echo "=== Docker Registry Login ==="
       echo "Registry: $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
-
-      # TENANCY_NAMESPACE 재설정 (이전 단계에서 설정되지 않았을 경우)
-      if [ -z "$TENANCY_NAMESPACE" ]; then
-        echo "TENANCY_NAMESPACE is empty, re-setting..."
-        TENANCY_NAMESPACE=$(oci os ns get --query data --raw-output 2>/dev/null || echo "cnr9rzehbbjk")
-      fi
-      echo "Tenancy Namespace: $TENANCY_NAMESPACE"
-
-      # OCI CLI 정보 확인
-      echo "OCI CLI user info:"
-      oci iam user list --query 'data[0].name' --raw-output 2>/dev/null || echo "Cannot get user info"
-
-      # Auth Token 검증 및 대안 방법 시도
-      echo "Checking for AUTH_TOKEN..."
+      echo "TENANCY_NAMESPACE: '$TENANCY_NAMESPACE'"
       echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
 
-      # 모든 환경변수 확인 (디버깅용)
-      echo "=== Environment Variables Debug ==="
-      echo "OCI_BUILD_RUN_ID: $OCI_BUILD_RUN_ID"
-      echo "OCI_RESOURCE_PRINCIPAL_REGION: $OCI_RESOURCE_PRINCIPAL_REGION"
-      echo "TENANCY_NAMESPACE: '$TENANCY_NAMESPACE'"
-      echo "All environment variables containing 'TOKEN':"
-      env | grep -i token || echo "No TOKEN variables found"
-      echo "All environment variables containing 'AUTH':"
-      env | grep -i auth || echo "No AUTH variables found"
-      echo "=================================="
-
-      # AUTH_TOKEN 검증 및 처리
-      echo "Raw AUTH_TOKEN value: '$AUTH_TOKEN'"
-
-      # OCI DevOps 매개변수 처리 방식들을 시도
-      TOKEN_TO_USE=""
-
-      # 토큰 확인 및 설정
-      TOKEN_TO_USE=""
-
-      # 검색에서 찾은 토큰이 있는지 확인
-      if [ -f "/tmp/auth_token_found" ]; then
-        FOUND_TOKEN=$(cat /tmp/auth_token_found 2>/dev/null)
-        FOUND_VAR=$(cat /tmp/auth_token_var_name 2>/dev/null)
-        if [ -n "$FOUND_TOKEN" ]; then
-          echo "✓ Using AUTH_TOKEN from '$FOUND_VAR' (length: ${#FOUND_TOKEN})"
-          TOKEN_TO_USE="$FOUND_TOKEN"
-        fi
-      fi
-
-      # 직접 AUTH_TOKEN 확인 (가장 일반적인 경우)
-      if [ -z "$TOKEN_TO_USE" ] && [ -n "$AUTH_TOKEN" ] && [ ${#AUTH_TOKEN} -gt 10 ]; then
-        echo "✓ Using direct AUTH_TOKEN (${#AUTH_TOKEN} characters)"
-        TOKEN_TO_USE="$AUTH_TOKEN"
-      fi
-
-      # 최종 검증 (하지만 실패해도 계속 진행)
-      if [ -z "$TOKEN_TO_USE" ]; then
-        echo "⚠️ WARNING: AUTH_TOKEN could not be found"
-        echo ""
-        echo "Debug Information:"
-        echo "AUTH_TOKEN value: '$AUTH_TOKEN'"
-        echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
-        echo "OCI_BUILD_PARAMETERS: ${OCI_BUILD_PARAMETERS:-'(not set)'}"
-        echo ""
-        echo "All environment variables containing 'TOKEN':"
-        env | grep -i token || echo "  (none found)"
-        echo ""
-        echo "All environment variables containing 'AUTH':"
-        env | grep -i auth || echo "  (none found)"
-        echo ""
-        echo "💡 CONTINUING WITH RESOURCE PRINCIPAL AUTHENTICATION..."
-        echo "This is expected when AUTH_TOKEN parameter is not properly passed."
-      else
-        echo "✓ AUTH_TOKEN successfully resolved (${#TOKEN_TO_USE} characters)"
-      fi
-
-      # 사용자 이름 확인
-      OCI_USER_NAME=$(oci iam user list --query 'data[0].name' --raw-output 2>/dev/null || echo "oracleidentitycloudservice")
-
-      echo "Final values for Docker login:"
-      echo "  TENANCY_NAMESPACE: '$TENANCY_NAMESPACE'"
-      echo "  OCI_USER_NAME: '$OCI_USER_NAME'"
-      echo "  Username: '$TENANCY_NAMESPACE/$OCI_USER_NAME'"
-      echo "  Registry: $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
-      echo "  Token length: ${#TOKEN_TO_USE}"
-
-      # Docker 로그인 시도 (AUTH_TOKEN 우선, 없으면 Resource Principal)
-      if [ -n "$TOKEN_TO_USE" ]; then
-        echo "=== Attempting Docker Login with Auth Token ==="
-        echo "Registry: $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
-        echo "Username: $TENANCY_NAMESPACE/$OCI_USER_NAME"
-        echo "Token length: ${#TOKEN_TO_USE}"
-        
-        echo "$TOKEN_TO_USE" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/$OCI_USER_NAME" --password-stdin
+      # AUTH_TOKEN이 있으면 사용, 없으면 Resource Principal 사용
+      if [ -n "$AUTH_TOKEN" ] && [ ${#AUTH_TOKEN} -gt 10 ]; then
+        echo "=== Using AUTH_TOKEN Authentication ==="
+        echo "$AUTH_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/oracleidentitycloudservice" --password-stdin
         LOGIN_RESULT=$?
-
+        
         if [ $LOGIN_RESULT -eq 0 ]; then
-          echo "✓ Docker login successful with Auth Token"
+          echo "✓ Docker login successful with AUTH_TOKEN"
         else
-          echo "✗ Docker login failed with Auth Token (exit code: $LOGIN_RESULT)"
-          echo "Trying alternative username format..."
-          echo "$TOKEN_TO_USE" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/oracleidentitycloudservice" --password-stdin
-          ALT_LOGIN_RESULT=$?
-          if [ $ALT_LOGIN_RESULT -eq 0 ]; then
-            echo "✓ Docker login successful with alternative username"
-          else
-            echo "✗ All Docker login attempts failed"
-            echo "Trying with different username formats..."
-            
-            # 추가 대안 사용자명 시도
-            for username in "$TENANCY_NAMESPACE/oracleidentitycloudservice" "$TENANCY_NAMESPACE/cloudnative" "$TENANCY_NAMESPACE/devops"; do
-              echo "Trying username: $username"
-              echo "$TOKEN_TO_USE" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$username" --password-stdin
-              if [ $? -eq 0 ]; then
-                echo "✓ Docker login successful with username: $username"
-                break
-              fi
-            done
-            
-            # 최종 확인
-            docker info | grep "Username" || echo "Docker login status unknown"
-          fi
+          echo "✗ Docker login failed with AUTH_TOKEN, trying Resource Principal..."
         fi
       else
-        echo "=== Using Resource Principal Authentication (Default) ==="
-        echo "AUTH_TOKEN not available, using Resource Principal for OCIR access..."
-        
-        # Resource Principal을 통한 OCIR 로그인 시도
-        echo "=== Attempting Resource Principal Authentication ==="
-        
-        # 방법 1: Docker를 직접 OCI CLI로 인증 (가장 간단)
-        echo "Attempting direct Docker login with OCI CLI Resource Principal..."
+        echo "=== Using Resource Principal Authentication ==="
+        echo "AUTH_TOKEN not available, using Resource Principal..."
+        LOGIN_RESULT=1
+      fi
+
+      # AUTH_TOKEN 실패 시 Resource Principal 시도
+      if [ $LOGIN_RESULT -ne 0 ]; then
+        echo "Attempting Resource Principal authentication..."
         
         # OCI CLI가 Resource Principal로 인증되어 있는지 확인
-        echo "Verifying Resource Principal authentication..."
         if oci iam region list --query 'data[0].name' --raw-output 2>/dev/null >/dev/null; then
           echo "✓ Resource Principal authentication working"
           
-          # 직접 docker login 시도 (OCI CLI credentials 사용)
-          echo "Attempting docker login with Resource Principal credentials..."
-          if oci artifacts container repository list --compartment-id $(oci iam compartment list --query 'data[0].id' --raw-output 2>/dev/null) >/dev/null 2>&1; then
-            echo "✓ Resource Principal can access Container Registry"
+          # OCI CLI를 사용해 임시 토큰으로 Docker 로그인
+          echo "Generating temporary auth token..."
+          TEMP_TOKEN=$(oci iam auth-token create --description "DevOps-Build-$(date +%s)" --query 'data.token' --raw-output 2>/dev/null || echo "")
+          
+          if [ -n "$TEMP_TOKEN" ] && [ ${#TEMP_TOKEN} -gt 10 ]; then
+            echo "✓ Temporary auth token generated (${#TEMP_TOKEN} characters)"
+            echo "$TEMP_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/oracleidentitycloudservice" --password-stdin
+            RP_LOGIN_RESULT=$?
             
-            # OCI CLI를 사용해 임시 토큰으로 Docker 로그인
-            echo "Generating temporary auth token..."
-            TEMP_TOKEN=$(oci iam auth-token create --description "DevOps-Build-$(date +%s)" --query 'data.token' --raw-output 2>/dev/null || echo "")
-            
-            if [ -n "$TEMP_TOKEN" ] && [ ${#TEMP_TOKEN} -gt 10 ]; then
-              echo "✓ Temporary auth token generated (${#TEMP_TOKEN} characters)"
-              echo "$TEMP_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/oracleidentitycloudservice" --password-stdin
-              RP_LOGIN_RESULT=$?
-              
-              if [ $RP_LOGIN_RESULT -eq 0 ]; then
-                echo "✓ Docker login successful with temporary token"
-              else
-                echo "⚠️ Docker login with temporary token failed"
-                RP_LOGIN_RESULT=1
-              fi
+            if [ $RP_LOGIN_RESULT -eq 0 ]; then
+              echo "✓ Docker login successful with temporary token"
             else
-              echo "⚠️ Could not generate temporary auth token"
-              RP_LOGIN_RESULT=1
+              echo "⚠️ Docker login with temporary token failed"
+              echo "Build will continue - Docker push may fail, but image build should work"
             fi
           else
-            echo "⚠️ Resource Principal cannot access Container Registry"
-            RP_LOGIN_RESULT=1
+            echo "⚠️ Could not generate temporary auth token"
+            echo "Build will continue - Docker push may fail, but image build should work"
           fi
         else
           echo "⚠️ Resource Principal authentication not working"
-          RP_LOGIN_RESULT=1
-        fi
-        
-        # 방법 2: 기존 환경에서 Docker 인증 정보 사용
-        if [ $RP_LOGIN_RESULT -ne 0 ] || [ -z "$RP_TOKEN" ]; then
-          echo "Trying alternative authentication methods..."
-          
-          # OCI CLI 기본 인증 확인
-          echo "Checking OCI CLI authentication..."
-          oci iam region list --query 'data[0].name' --raw-output 2>/dev/null || echo "OCI CLI auth failed"
-          
-          # Docker credential helper 사용 시도
-          echo "Trying Docker credential helper..."
-          if command -v docker-credential-ocir >/dev/null 2>&1; then
-            echo "Found docker-credential-ocir, configuring..."
-            echo '{"ServerURL":"'$OCI_RESOURCE_PRINCIPAL_REGION'.ocir.io","Username":"'$TENANCY_NAMESPACE'/oracleidentitycloudservice","Secret":"dummy"}' | docker-credential-ocir store
-          fi
-          
-          # 최후의 수단: OCI CLI 세션 인증
-          echo "Attempting OCI CLI session authentication..."
-          oci session authenticate --region $OCI_RESOURCE_PRINCIPAL_REGION --profile-name devops-session 2>/dev/null || echo "OCI session auth failed"
-          
-          # OCI Registry 직접 인증 시도 (Resource Principal)
-          echo "Trying direct OCI registry authentication with Resource Principal..."
-          
-          # Resource Principal로 OCIR 직접 인증
-          echo "Configuring Docker for Resource Principal authentication..."
-          
-          # OCI CLI로 토큰 없이 도커 로그인 시도 (Resource Principal 사용)
-          echo "Trying Resource Principal based docker login..."
-          if oci artifacts container repository list --compartment-id $(oci iam compartment list --query 'data[0].id' --raw-output 2>/dev/null) >/dev/null 2>&1; then
-            echo "✓ Resource Principal can access Container Registry"
-            
-            # Docker credential helper 설정
-            mkdir -p ~/.docker
-            echo "Creating Docker config for Resource Principal authentication..."
-            AUTH_STRING=$(echo -n "$TENANCY_NAMESPACE/oracleidentitycloudservice:" | base64 -w 0)
-            
-            # JSON 파일을 echo로 생성 (YAML 충돌 방지)
-            echo '{' > ~/.docker/config.json
-            echo '  "auths": {' >> ~/.docker/config.json
-            echo "    \"${OCI_RESOURCE_PRINCIPAL_REGION}.ocir.io\": {" >> ~/.docker/config.json
-            echo "      \"auth\": \"${AUTH_STRING}\"" >> ~/.docker/config.json
-            echo '    }' >> ~/.docker/config.json
-            echo '  },' >> ~/.docker/config.json
-            echo '  "credsStore": "ocir"' >> ~/.docker/config.json
-            echo '}' >> ~/.docker/config.json
-            echo "✓ Docker credential helper configured for Resource Principal"
-          else
-            echo "✗ Resource Principal cannot access Container Registry"
-            echo "Required IAM Policy: allow dynamic-group devops-build-dynamic-group to manage repos in tenancy"
-          fi
-        fi
-        
-        # 최종 상태 확인
-        if [ $RP_LOGIN_RESULT -ne 0 ]; then
-          echo "⚠️ Resource Principal authentication failed"
           echo "Build will continue - Docker push may fail, but image build should work"
-          echo ""
-          echo "💡 TO FIX AUTHENTICATION ISSUES:"
-          echo ""
-          echo "1. SET UP AUTH_TOKEN PARAMETER:"
-          echo "   - Go to OCI Console → DevOps → Build Pipelines"
-          echo "   - Select your pipeline → Parameters tab"
-          echo "   - Add parameter: AUTH_TOKEN (type: String)"
-          echo "   - Set value to your OCI Auth Token"
-          echo ""
-          echo "2. OR USE OCI VAULT (RECOMMENDED):"
-          echo "   - Store AUTH_TOKEN in OCI Vault"
-          echo "   - Update build_spec.yaml vaultVariables section"
-          echo ""
-          echo "3. OR FIX RESOURCE PRINCIPAL POLICIES:"
-          echo "   - Ensure Dynamic Group includes this build run"
-          echo "   - Add policy: allow dynamic-group devops-build-dynamic-group to manage auth-tokens in tenancy"
-          echo "   - Add policy: allow dynamic-group devops-build-dynamic-group to manage repos in tenancy"
-          echo ""
-          echo "Continuing with build process..."
-        else
-          echo "✓ Authentication successful - proceeding with build"
         fi
       fi
 
-      echo "Registry login completed successfully"
+      echo "Registry login completed"
 
   - type: Command
     name: 'Build Container Image'
