@@ -19,6 +19,8 @@ env:
     - CONTEXT_PATH
     - TENANCY_NAMESPACE
     - AUTH_TOKEN
+    - COMMIT_ID
+    - REPO_NAME
 
 inputArtifacts:
 
@@ -168,6 +170,12 @@ steps:
       COMMIT_ID=`echo ${OCI_TRIGGER_COMMIT_HASH} | cut -c 1-7`
       BUILDRUN_HASH=`echo ${OCI_BUILD_RUN_ID} | rev | cut -c 1-7`
       [ -z "$COMMIT_ID" ] && TAG=$BUILDRUN_HASH || TAG=$COMMIT_ID
+
+      # Export variables for next steps
+      export COMMIT_ID
+      export BUILDRUN_HASH
+      export TAG
+
       echo "TAG: $TAG"
       echo "BUILDRUN_HASH: $BUILDRUN_HASH"
       echo "COMMIT_ID: $COMMIT_ID"
@@ -270,9 +278,49 @@ steps:
     name: 'Push Container Image'
     timeoutInSeconds: 600
     command: |
+      echo "=== Push Container Image Debug ==="
+      echo "TAG: '$TAG'"
+      echo "IMAGE_PATH: '$IMAGE_PATH'"
+      echo "BUILDRUN_HASH: '$BUILDRUN_HASH'"
+      echo "COMMIT_ID: '$COMMIT_ID'"
+
+      # Reconstruct variables if they're empty
+      if [ -z "$TAG" ]; then
+        COMMIT_ID=`echo ${OCI_TRIGGER_COMMIT_HASH} | cut -c 1-7`
+        BUILDRUN_HASH=`echo ${OCI_BUILD_RUN_ID} | rev | cut -c 1-7`
+        [ -z "$COMMIT_ID" ] && TAG=$BUILDRUN_HASH || TAG=$COMMIT_ID
+        echo "Reconstructed TAG: $TAG"
+      fi
+
+      if [ -z "$IMAGE_PATH" ]; then
+        TENANCY_NAMESPACE=${OCI_TENANCY_NAMESPACE:-"cnr9rzehbbjk"}
+        APP_NAME=${defaultAppName:-"rhythm-archive"}
+        IMAGE_PATH=$OCI_RESOURCE_PRINCIPAL_REGION.ocir.io/$TENANCY_NAMESPACE/$APP_NAME
+        echo "Reconstructed IMAGE_PATH: $IMAGE_PATH"
+      fi
+
+      echo "Final values:"
+      echo "IMAGE_PATH: $IMAGE_PATH"
+      echo "TAG: $TAG"
+      echo "Target image: $IMAGE_PATH:$TAG"
+
       echo "Verifying images before push..."
+      echo "All Docker images:"
+      docker images
+      echo ""
       echo "Looking for image: $IMAGE_PATH:$TAG"
-      docker images | grep "$IMAGE_PATH:$TAG" || (echo "ERROR: Image $IMAGE_PATH:$TAG not found!" && exit 1)
+
+      # Check if image exists
+      if docker images | grep -q "$IMAGE_PATH.*$TAG"; then
+        echo "✓ Found image: $IMAGE_PATH:$TAG"
+      else
+        echo "✗ Image $IMAGE_PATH:$TAG not found!"
+        echo "Available images with similar name:"
+        docker images | grep "$IMAGE_PATH" || echo "No images found with path $IMAGE_PATH"
+        echo "Available images with similar tag:"
+        docker images | grep "$TAG" || echo "No images found with tag $TAG"
+        exit 1
+      fi
 
       echo "Pushing Docker images..."
       echo "Pushing: $IMAGE_PATH:$TAG"
