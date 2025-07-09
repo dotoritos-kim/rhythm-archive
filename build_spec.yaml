@@ -66,15 +66,15 @@ steps:
       echo ""
       echo "=== All Parameter-related Variables ==="
       env | grep -iE "(param|token|auth)" || echo "No parameter/token/auth variables found"
-      
+
       # OCI DevOps 매개변수 전달 방식 강제 확인
       echo ""
       echo "=== FORCED PARAMETER DEBUGGING ==="
       echo "Checking all possible parameter passing methods OCI DevOps uses..."
-      
+
       # 방법 1: 직접 변수명으로
       echo "Direct AUTH_TOKEN: '${AUTH_TOKEN:-NOT_SET}'"
-      
+
       # 방법 2: 대문자/소문자 변형들
       for var_name in "AUTH_TOKEN" "auth_token" "Auth_Token" "AUTHTOKEN" "authtoken"; do
         eval var_value=\$$var_name
@@ -82,7 +82,7 @@ steps:
           echo "Found $var_name: '${var_value}' (length: ${#var_value})"
         fi
       done
-      
+
       # 방법 3: OCI 접두사 변형들
       for var_name in "OCI_AUTH_TOKEN" "PIPELINE_AUTH_TOKEN" "BUILD_AUTH_TOKEN" "DEVOPS_AUTH_TOKEN"; do
         eval var_value=\$$var_name
@@ -90,7 +90,7 @@ steps:
           echo "Found $var_name: '${var_value}' (length: ${#var_value})"
         fi
       done
-      
+
       # 방법 4: 모든 환경변수를 스캔해서 토큰처럼 보이는 값 찾기
       echo ""
       echo "Scanning ALL environment variables for token-like values (20+ chars)..."
@@ -582,16 +582,18 @@ steps:
             
             # Docker credential helper 설정
             mkdir -p ~/.docker
-            cat > ~/.docker/config.json << 'DOCKER_CONFIG'
-{
-  "auths": {
-    "'"$OCI_RESOURCE_PRINCIPAL_REGION"'.ocir.io": {
-      "auth": "'"$(echo -n "$TENANCY_NAMESPACE/oracleidentitycloudservice:" | base64 -w 0)"'"
-    }
-  },
-  "credsStore": "ocir"
-}
-DOCKER_CONFIG
+            echo "Creating Docker config for Resource Principal authentication..."
+            AUTH_STRING=$(echo -n "$TENANCY_NAMESPACE/oracleidentitycloudservice:" | base64 -w 0)
+            
+            # JSON 파일을 echo로 생성 (YAML 충돌 방지)
+            echo '{' > ~/.docker/config.json
+            echo '  "auths": {' >> ~/.docker/config.json
+            echo "    \"${OCI_RESOURCE_PRINCIPAL_REGION}.ocir.io\": {" >> ~/.docker/config.json
+            echo "      \"auth\": \"${AUTH_STRING}\"" >> ~/.docker/config.json
+            echo '    }' >> ~/.docker/config.json
+            echo '  },' >> ~/.docker/config.json
+            echo '  "credsStore": "ocir"' >> ~/.docker/config.json
+            echo '}' >> ~/.docker/config.json
             echo "✓ Docker credential helper configured for Resource Principal"
           else
             echo "✗ Resource Principal cannot access Container Registry"
