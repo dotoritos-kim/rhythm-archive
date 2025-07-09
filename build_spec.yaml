@@ -28,9 +28,6 @@ outputArtifacts:
     # Docker 이미지는 이미 레지스트리에 푸시되었으므로 레지스트리 경로 사용
     # OCI DevOps는 actual pushed image location을 자동으로 감지
     location: ap-seoul-1.ocir.io/cnr9rzehbbjk/rhythm-archive
-  - name: output-oci-oke-deployment
-    type: BINARY
-    location: k8s/
   - name: image-definitions
     type: BINARY
     location: imageDefinitions.json
@@ -452,9 +449,22 @@ steps:
     timeoutInSeconds: 60
     command: |
       echo "Preparing Kubernetes manifests for artifact repository..."
-      # Update image tag in deployment.yaml
-      sed -i "s|us-ashburn-1.ocir.io/your-tenancy-namespace/rhythm-archive:latest|$IMAGE_PATH:$TAG|g" k8s/deployment.yaml
-      echo "Kubernetes manifests prepared successfully"
+
+      # Check if k8s directory exists and update if it does
+      if [ -d "k8s" ]; then
+        echo "k8s directory found, updating deployment.yaml..."
+        if [ -f "k8s/deployment.yaml" ]; then
+          sed -i "s|us-ashburn-1.ocir.io/your-tenancy-namespace/rhythm-archive:latest|$IMAGE_PATH:$TAG|g" k8s/deployment.yaml
+          echo "✓ Updated k8s/deployment.yaml"
+        else
+          echo "⚠️  k8s/deployment.yaml not found"
+        fi
+      else
+        echo "⚠️  k8s directory not found in build environment"
+        echo "This is normal if k8s manifests are stored separately"
+      fi
+
+      echo "Kubernetes manifests preparation completed"
 
   - type: Command
     name: 'Create Artifact Files'
