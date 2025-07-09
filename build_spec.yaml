@@ -163,8 +163,21 @@ steps:
     name: 'Define Image Path'
     timeoutInSeconds: 30
     command: |
-      # Get tenancy namespace with fallback
-      TENANCY_NAMESPACE=$(oci os ns get --query data --raw-output 2>/dev/null || echo "cnr9rzehbbjk")
+      # Get tenancy namespace with multiple fallback options
+      TENANCY_NAMESPACE=$(oci os ns get --query data --raw-output 2>/dev/null || echo "")
+      if [ -z "$TENANCY_NAMESPACE" ]; then
+        echo "OCI CLI failed to get namespace, trying alternative methods..."
+        # Try to get from environment variable or use hardcoded fallback
+        TENANCY_NAMESPACE=${OCI_TENANCY_NAMESPACE:-"cnr9rzehbbjk"}
+        echo "Using fallback namespace: $TENANCY_NAMESPACE"
+      fi
+
+      # Ensure TENANCY_NAMESPACE is not empty
+      if [ -z "$TENANCY_NAMESPACE" ]; then
+        echo "ERROR: TENANCY_NAMESPACE is still empty, using hardcoded value"
+        TENANCY_NAMESPACE="cnr9rzehbbjk"
+      fi
+
       REPO_NAME=$APP_NAME
       IMAGE_PATH=$OCI_RESOURCE_PRINCIPAL_REGION.ocir.io/$TENANCY_NAMESPACE/$REPO_NAME
       echo "IMAGE_PATH: $IMAGE_PATH"
@@ -184,40 +197,69 @@ steps:
       echo "OCI CLI user info:"
       oci iam user list --query 'data[0].name' --raw-output 2>/dev/null || echo "Cannot get user info"
 
-      # Auth Token을 사용한 Docker 로그인
+      # Auth Token 검증 및 대안 방법 시도
+      echo "Checking for AUTH_TOKEN..."
+      echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
+
+      # AUTH_TOKEN 검증
       if [ -n "$AUTH_TOKEN" ]; then
-        echo "Auth Token found, attempting Docker login..."
-        echo "Auth Token length: ${#AUTH_TOKEN}"
-        echo "Username format: $TENANCY_NAMESPACE/\$OCI_USER_NAME"
-        
-        # 사용자 이름 확인
-        OCI_USER_NAME=$(oci iam user list --query 'data[0].name' --raw-output 2>/dev/null || echo "oracleidentitycloudservice")
-        
-        echo "Using username: $TENANCY_NAMESPACE/$OCI_USER_NAME"
-        echo "Registry: $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
-        
-        # Docker 로그인 시도
-        echo "$AUTH_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/$OCI_USER_NAME" --password-stdin
-        LOGIN_RESULT=$?
-        
-        if [ $LOGIN_RESULT -eq 0 ]; then
-          echo "✓ Docker login successful with Auth Token"
-        else
-          echo "✗ Docker login failed with Auth Token (exit code: $LOGIN_RESULT)"
-          echo "Trying alternative username format..."
-          echo "$AUTH_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/oracleidentitycloudservice" --password-stdin
-          ALT_LOGIN_RESULT=$?
-          if [ $ALT_LOGIN_RESULT -eq 0 ]; then
-            echo "✓ Docker login successful with alternative username"
-          else
-            echo "✗ All Docker login attempts failed"
-            exit 1
-          fi
-        fi
+        echo "✓ AUTH_TOKEN found"
+        TOKEN_TO_USE="$AUTH_TOKEN"
       else
         echo "✗ ERROR: AUTH_TOKEN environment variable not set"
-        echo "Please add AUTH_TOKEN parameter to your build pipeline"
+        echo "Available environment variables:"
+        env | grep -i "token\|password\|auth" | head -10 || echo "No auth-related variables found"
+        
+        # Resource Principal을 사용한 대안 로그인 시도
+        echo "Attempting Resource Principal authentication..."
+        oci auth authenticate --auth resource_principal || echo "Resource Principal auth failed"
+        
+        # Docker config 확인
+        echo "Checking Docker config..."
+        docker info || echo "Docker not available or not configured"
+        
+        echo "✗ ERROR: AUTH_TOKEN is required"
+        echo "Please ensure AUTH_TOKEN is set in your build pipeline parameters"
         exit 1
+      fi
+
+      # 사용자 이름 확인
+      OCI_USER_NAME=$(oci iam user list --query 'data[0].name' --raw-output 2>/dev/null || echo "oracleidentitycloudservice")
+
+      echo "Using username: $TENANCY_NAMESPACE/$OCI_USER_NAME"
+      echo "Registry: $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
+      echo "Token length: ${#TOKEN_TO_USE}"
+
+      # Docker 로그인 시도
+      echo "$TOKEN_TO_USE" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/$OCI_USER_NAME" --password-stdin
+      LOGIN_RESULT=$?
+
+      if [ $LOGIN_RESULT -eq 0 ]; then
+        echo "✓ Docker login successful with Auth Token"
+      else
+        echo "✗ Docker login failed with Auth Token (exit code: $LOGIN_RESULT)"
+        echo "Trying alternative username format..."
+        echo "$TOKEN_TO_USE" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/oracleidentitycloudservice" --password-stdin
+        ALT_LOGIN_RESULT=$?
+        if [ $ALT_LOGIN_RESULT -eq 0 ]; then
+          echo "✓ Docker login successful with alternative username"
+        else
+          echo "✗ All Docker login attempts failed"
+          echo "Trying with different username formats..."
+          
+          # 추가 대안 사용자명 시도
+          for username in "$TENANCY_NAMESPACE/oracleidentitycloudservice" "$TENANCY_NAMESPACE/cloudnative" "$TENANCY_NAMESPACE/devops"; do
+            echo "Trying username: $username"
+            echo "$TOKEN_TO_USE" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$username" --password-stdin
+            if [ $? -eq 0 ]; then
+              echo "✓ Docker login successful with username: $username"
+              break
+            fi
+          done
+          
+          # 최종 확인
+          docker info | grep "Username" || echo "Docker login status unknown"
+        fi
       fi
 
       echo "Registry login completed successfully"
