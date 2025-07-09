@@ -582,16 +582,16 @@ steps:
             
             # Docker credential helper 설정
             mkdir -p ~/.docker
-            cat > ~/.docker/config.json << EOF
+            cat > ~/.docker/config.json << 'DOCKER_CONFIG'
 {
   "auths": {
-    "$OCI_RESOURCE_PRINCIPAL_REGION.ocir.io": {
-      "auth": "$(echo -n "$TENANCY_NAMESPACE/oracleidentitycloudservice:" | base64 -w 0)"
+    "'"$OCI_RESOURCE_PRINCIPAL_REGION"'.ocir.io": {
+      "auth": "'"$(echo -n "$TENANCY_NAMESPACE/oracleidentitycloudservice:" | base64 -w 0)"'"
     }
   },
   "credsStore": "ocir"
 }
-EOF
+DOCKER_CONFIG
             echo "✓ Docker credential helper configured for Resource Principal"
           else
             echo "✗ Resource Principal cannot access Container Registry"
