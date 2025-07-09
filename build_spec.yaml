@@ -25,7 +25,9 @@ inputArtifacts:
 outputArtifacts:
   - name: output-image
     type: DOCKER_IMAGE
-    location: $IMAGE_PATH:$TAG
+    # Docker 이미지는 이미 레지스트리에 푸시되었으므로 레지스트리 경로 사용
+    # OCI DevOps는 actual pushed image location을 자동으로 감지
+    location: ap-seoul-1.ocir.io/cnr9rzehbbjk/rhythm-archive
   - name: output-oci-oke-deployment
     type: BINARY
     location: k8s/
