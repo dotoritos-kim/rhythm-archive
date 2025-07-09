@@ -7,8 +7,7 @@ env:
   variables:
     defaultAppName: 'rhythm-archive'
     defaultContextPath: '/'
-    # AUTH_TOKEN should be set as Build Pipeline Parameter or Vault Variable
-    # ⚠️ NEVER hardcode tokens in build specs for security reasons
+    # OCI DevOps 매개변수는 자동으로 환경변수로 전달됩니다
   vaultVariables:
     # SECURE SOLUTION: Store AUTH_TOKEN in OCI Vault
     # AUTH_TOKEN: "ocid1.vaultsecrets.oc1.ap-seoul-1.your-vault-secret-ocid"
@@ -67,42 +66,35 @@ steps:
       echo "=== All Parameter-related Variables ==="
       env | grep -iE "(param|token|auth)" || echo "No parameter/token/auth variables found"
 
-      # OCI DevOps 매개변수 전달 버그 강제 해결
+            # OCI DevOps 매개변수 확인
       echo ""
-      echo "=== FORCING AUTH_TOKEN DETECTION ==="
-      echo "Known AUTH_TOKEN from pipeline: NQ7(e-fQwLZkaWaOW<4d"
+      echo "=== CHECKING AUTH_TOKEN PARAMETER ==="
+      echo "AUTH_TOKEN should be automatically available as environment variable"
 
-      # 방법 1: 모든 환경변수에서 알려진 토큰 값 찾기
-      echo "Searching for known token value in all environment variables..."
-      KNOWN_TOKEN="NQ7(e-fQwLZkaWaOW<4d"
+      # 직접 AUTH_TOKEN 확인
+      echo "Direct AUTH_TOKEN check: '${AUTH_TOKEN:-NOT_SET}'"
+      echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
 
-      env | while IFS='=' read -r name value; do
-        if [ "$value" = "$KNOWN_TOKEN" ]; then
-          echo "✓ FOUND AUTH_TOKEN in variable: $name = $value"
-          echo "$value" > /tmp/auth_token_found
-          echo "$name" > /tmp/auth_token_var_name
-        fi
-      done
-
-      # 방법 2: 특정 길이(20자)와 패턴으로 찾기
-      echo "Searching for 20-character tokens matching the pattern..."
-      env | while IFS='=' read -r name value; do
-        if [ ${#value} -eq 20 ] && echo "$value" | grep -qE '^[A-Za-z0-9()\-<>]+$'; then
-          echo "✓ Found 20-char token in $name: '${value}'"
-          echo "$value" > /tmp/auth_token_found
-          echo "$name" > /tmp/auth_token_var_name
-        fi
-      done
-
-      # 방법 3: AUTH_TOKEN이 다른 이름으로 전달되었는지 확인
-      for var_name in "AUTH_TOKEN" "auth_token" "AUTHTOKEN" "AUTH_TOKEN_VALUE" "PIPELINE_AUTH_TOKEN" "BUILD_AUTH_TOKEN" "DEVOPS_AUTH_TOKEN" "OCI_AUTH_TOKEN" "PARAM_AUTH_TOKEN"; do
-        eval var_value=\$$var_name
-        if [ -n "$var_value" ] && [ ${#var_value} -ge 15 ]; then
-          echo "✓ Found token in $var_name: '${var_value}' (length: ${#var_value})"
-          echo "$var_value" > /tmp/auth_token_found
-          echo "$var_name" > /tmp/auth_token_var_name
-        fi
-      done
+      # 매개변수 값이 설정되어 있다면 사용
+      if [ -n "$AUTH_TOKEN" ] && [ ${#AUTH_TOKEN} -gt 10 ]; then
+        echo "✓ AUTH_TOKEN found with length ${#AUTH_TOKEN} characters"
+        echo "$AUTH_TOKEN" > /tmp/auth_token_found
+        echo "AUTH_TOKEN" > /tmp/auth_token_var_name
+      else
+        echo "⚠️ AUTH_TOKEN parameter not found or empty"
+        echo "Checking alternative variable names..."
+        
+        # 대안 변수명들 확인
+        for var_name in "PIPELINE_AUTH_TOKEN" "BUILD_AUTH_TOKEN" "DEVOPS_AUTH_TOKEN" "OCI_AUTH_TOKEN"; do
+          eval var_value=\$$var_name
+          if [ -n "$var_value" ] && [ ${#var_value} -gt 10 ]; then
+            echo "✓ Found token in $var_name: '${var_value}' (length: ${#var_value})"
+            echo "$var_value" > /tmp/auth_token_found
+            echo "$var_name" > /tmp/auth_token_var_name
+            break
+          fi
+        done
+      fi
 
       echo ""
       echo "=== Variable Initialization Complete ==="
@@ -298,48 +290,23 @@ steps:
       # OCI DevOps 매개변수 처리 방식들을 시도
       TOKEN_TO_USE=""
 
-      # 먼저 강제 검색에서 찾은 토큰 확인
+      # 토큰 확인 및 설정
+      TOKEN_TO_USE=""
+
+      # 검색에서 찾은 토큰이 있는지 확인
       if [ -f "/tmp/auth_token_found" ]; then
         FOUND_TOKEN=$(cat /tmp/auth_token_found 2>/dev/null)
         FOUND_VAR=$(cat /tmp/auth_token_var_name 2>/dev/null)
         if [ -n "$FOUND_TOKEN" ]; then
-          echo "✓ SUCCESS: Found AUTH_TOKEN via forced search in variable '$FOUND_VAR'"
-          echo "Token value: '$FOUND_TOKEN' (length: ${#FOUND_TOKEN})"
+          echo "✓ Using AUTH_TOKEN from '$FOUND_VAR' (length: ${#FOUND_TOKEN})"
           TOKEN_TO_USE="$FOUND_TOKEN"
         fi
       fi
 
-      # 방법 1: 직접 AUTH_TOKEN 환경변수 확인 (백업)
-      if [ -z "$TOKEN_TO_USE" ] && [ -n "$AUTH_TOKEN" ] && [ "$AUTH_TOKEN" != "\${AUTH_TOKEN}" ] && [ ${#AUTH_TOKEN} -gt 10 ]; then
-        echo "✓ Method 1: AUTH_TOKEN found directly (${#AUTH_TOKEN} characters)"
+      # 직접 AUTH_TOKEN 확인 (가장 일반적인 경우)
+      if [ -z "$TOKEN_TO_USE" ] && [ -n "$AUTH_TOKEN" ] && [ ${#AUTH_TOKEN} -gt 10 ]; then
+        echo "✓ Using direct AUTH_TOKEN (${#AUTH_TOKEN} characters)"
         TOKEN_TO_USE="$AUTH_TOKEN"
-
-      # 방법 1.5: Vault Variable 확인 (권장 방법)
-      elif [ -z "$TOKEN_TO_USE" ] && [ -n "$VAULT_AUTH_TOKEN" ] && [ ${#VAULT_AUTH_TOKEN} -gt 10 ]; then
-        echo "✓ Method 1.5: Using Vault AUTH_TOKEN (${#VAULT_AUTH_TOKEN} characters)"
-        TOKEN_TO_USE="$VAULT_AUTH_TOKEN"
-
-      # 방법 2: 알려진 토큰 값으로 직접 확인 (OCI DevOps 버그 우회)
-      elif [ -z "$TOKEN_TO_USE" ]; then
-        echo "⚠️ Method 2: Using known AUTH_TOKEN value (OCI DevOps parameter bug workaround)"
-        KNOWN_TOKEN="NQ7(e-fQwLZkaWaOW<4d"
-        echo "Attempting to use known AUTH_TOKEN: $KNOWN_TOKEN"
-        TOKEN_TO_USE="$KNOWN_TOKEN"
-      fi
-
-      # 추가 검색 방법들 (백업)
-      if [ -z "$TOKEN_TO_USE" ]; then
-        echo "⚠️ Additional search: Checking alternative variable names..."
-        
-        # 간단한 대안 변수명들만 확인
-        for param_var in "PIPELINE_AUTH_TOKEN" "BUILD_AUTH_TOKEN" "DEVOPS_AUTH_TOKEN" "OCI_AUTH_TOKEN" "AUTH_TOKEN_PARAM" "PARAM_AUTH_TOKEN"; do
-          eval param_value=\$$param_var
-          if [ -n "$param_value" ] && [ ${#param_value} -gt 10 ]; then
-            echo "✓ Found token in $param_var (${#param_value} characters)"
-            TOKEN_TO_USE="$param_value"
-            break
-          fi
-        done
       fi
 
       # 최종 검증 (하지만 실패해도 계속 진행)
