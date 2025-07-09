@@ -7,10 +7,9 @@ shell: bash
     variables:
       defaultAppName: 'rhythm-archive'
       defaultContextPath: '/'
-      # AUTH_TOKEN: ${AUTH_TOKEN}  # 주석 처리 - 파라미터 전달 문제
   vaultVariables:
     # SECURE SOLUTION: Store AUTH_TOKEN in OCI Vault
-    # AUTH_TOKEN: "ocid1.vaultsecrets.oc1.ap-seoul-1.your-vault-secret-ocid"
+    AUTH_TOKEN: "ocid1.vaultsecret.oc1.ap-seoul-1.amaaaaaa2jyz5aaajzwgacmykkbpmk6r5giyck3x46fsd6a47ock6kn7nuqa"
   exportedVariables:
     - BUILDRUN_HASH
     - APP_NAME
@@ -43,6 +42,21 @@ steps:
       echo "=== Initializing Variables and Parameters ==="
       APP_NAME=$defaultAppName
       CONTEXT_PATH=$defaultContextPath
+      
+      # Vault에서 AUTH_TOKEN 확인
+      echo "=== Vault AUTH_TOKEN Check ==="
+      if [ -n "$AUTH_TOKEN" ]; then
+        echo "✓ AUTH_TOKEN found in Vault: ${#AUTH_TOKEN} chars"
+        echo "First 10 chars: '${AUTH_TOKEN:0:10}...'"
+      else
+        echo "✗ AUTH_TOKEN not found in Vault"
+        echo "Checking Vault secrets..."
+        
+        # Vault secrets 목록 확인 (디버깅용)
+        echo "Available Vault secrets:"
+        oci vault secret list --vault-id "ocid1.vault.oc1.ap-seoul-1.e5uf74yaaafvi.amaaaaaa2jyz5aaajzwgacmykkbpmk6r5giyck3x46fsd6a47ock6kn7nuqa" --query "data[*].{name:display-name,ocid:id}" --output table 2>/dev/null || echo "Failed to list vault secrets"
+      fi
+      
       echo "APP_NAME: $APP_NAME"
       echo "CONTEXT_PATH: $CONTEXT_PATH"
 
@@ -51,7 +65,7 @@ steps:
       echo "AUTH_TOKEN: '$AUTH_TOKEN'"
       echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
       echo "==== ENV DUMP ===="
-      env | sort
+      env | sort | grep -E "(AUTH_TOKEN|OCI_|BUILD_)" || echo "No relevant environment variables found"
       echo "=================="
 
   - type: Command
