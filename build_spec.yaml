@@ -3,11 +3,11 @@ component: build
 timeoutInSeconds: 6000
 runAs: root
 shell: bash
-env:
-  variables:
-    defaultAppName: 'rhythm-archive'
-    defaultContextPath: '/'
-    AUTH_TOKEN: ${AUTH_TOKEN}
+  env:
+    variables:
+      defaultAppName: 'rhythm-archive'
+      defaultContextPath: '/'
+      # AUTH_TOKEN: ${AUTH_TOKEN}  # 주석 처리 - 파라미터 전달 문제
   vaultVariables:
     # SECURE SOLUTION: Store AUTH_TOKEN in OCI Vault
     # AUTH_TOKEN: "ocid1.vaultsecrets.oc1.ap-seoul-1.your-vault-secret-ocid"
@@ -220,28 +220,33 @@ steps:
       echo "Registry: $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
       echo "TENANCY_NAMESPACE: '$TENANCY_NAMESPACE'"
       echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
+      echo "AUTH_TOKEN first 10 chars: '${AUTH_TOKEN:0:10}...'"
 
       # AUTH_TOKEN이 있으면 사용
-      if [ -n "$AUTH_TOKEN" ] && [ ${#AUTH_TOKEN} -gt 10 ]; then
+      if [ -n "$AUTH_TOKEN" ] && [ ${#AUTH_TOKEN} -gt 10 ] && [ "$AUTH_TOKEN" != "\${AUTH_TOKEN}" ]; then
         echo "=== Using AUTH_TOKEN Authentication ==="
         echo "$AUTH_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/oracleidentitycloudservice" --password-stdin
         LOGIN_RESULT=$?
         
         if [ $LOGIN_RESULT -eq 0 ]; then
           echo "✓ Docker login successful with AUTH_TOKEN"
+          echo "Testing authentication with docker info..."
+          docker info | grep -i "username\|registry" || echo "No registry info in docker info"
         else
-          echo "✗ Docker login failed with AUTH_TOKEN"
+          echo "✗ Docker login failed with AUTH_TOKEN (exit code: $LOGIN_RESULT)"
           echo "Build will continue - Docker push may fail, but image build should work"
         fi
       else
-        echo "=== AUTH_TOKEN Not Available ==="
-        echo "AUTH_TOKEN is not set or too short (length: ${#AUTH_TOKEN})"
+        echo "=== AUTH_TOKEN Not Available or Not Resolved ==="
+        echo "AUTH_TOKEN value: '$AUTH_TOKEN'"
+        echo "AUTH_TOKEN length: ${#AUTH_TOKEN}"
         echo ""
         echo "💡 TO FIX THIS ISSUE:"
         echo "1. Go to OCI Console → DevOps → Build Pipelines"
         echo "2. Select your pipeline → Parameters tab"
         echo "3. Add parameter: AUTH_TOKEN (type: String)"
         echo "4. Set value to your OCI Auth Token"
+        echo "5. Make sure the parameter is properly configured"
         echo ""
         echo "Build will continue - Docker push may fail, but image build should work"
       fi
@@ -323,6 +328,9 @@ steps:
       fi
 
       echo "Pushing Docker images..."
+      echo "Checking Docker authentication status..."
+      docker info | grep -i "username\|registry" || echo "No registry authentication info found"
+
       echo "Pushing: $IMAGE_PATH:$TAG"
       docker push $IMAGE_PATH:$TAG
       PUSH_EXIT_CODE=$?
