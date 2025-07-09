@@ -19,6 +19,7 @@ env:
     - IMAGE_PATH
     - TAG
     - CONTEXT_PATH
+    - OCI_AUTH_TOKEN
 
 # Its a native way to fetch artifacts from external or artifact repo or a file path to use before a stage.
 # More about buildspec formats - https://docs.oracle.com/en-us/iaas/Content/devops/using/build_specs.htm
@@ -175,6 +176,34 @@ steps:
       echo "IMAGE_PATH: $IMAGE_PATH"
       echo "TENANCY_NAMESPACE: $TENANCY_NAMESPACE"
       echo "REPO_NAME: $REPO_NAME"
+
+    - type: Command
+    name: 'Login to OCI Container Registry with Auth Token'
+    timeoutInSeconds: 60
+    command: |
+      echo "Logging into OCI Container Registry with Auth Token..."
+      echo "Registry: $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
+      echo "Tenancy Namespace: $TENANCY_NAMESPACE"
+      
+      # Auth Token을 사용한 Docker 로그인
+      # 주의: 실제 환경에서는 Auth Token을 OCI Vault에 저장해서 사용하세요
+      
+      # 방법 1: 환경변수에서 Auth Token 사용 (권장)
+      if [ -n "$OCI_AUTH_TOKEN" ]; then
+        echo "Using Auth Token from environment variable..."
+        echo "$OCI_AUTH_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username $TENANCY_NAMESPACE/oracleidentitycloudservice --password-stdin
+        LOGIN_RESULT=$?
+        if [ $LOGIN_RESULT -eq 0 ]; then
+          echo "Docker login successful with Auth Token"
+        else
+          echo "Docker login failed with Auth Token"
+        fi
+      else
+        echo "Warning: OCI_AUTH_TOKEN environment variable not set"
+        echo "Please set OCI_AUTH_TOKEN in your build pipeline parameters"
+      fi
+      
+      echo "Registry login completed"
 
   - type: Command
     name: 'Build Container Image'
