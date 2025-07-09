@@ -42,6 +42,12 @@ steps:
       kubectl config set-context oke-context --cluster=oke-cluster --user=oke-user
       kubectl config use-context oke-context
 
+      # Update deployment.yaml with correct image tag
+      if [ -n "$IMAGE_TAG" ]; then
+        echo "Updating deployment with image tag: $IMAGE_TAG"
+        sed -i "s|us-ashburn-1.ocir.io/your-tenancy-namespace/rhythm-archive:latest|$IMAGE_TAG|g" k8s/deployment.yaml
+      fi
+
       # Apply Kubernetes manifests
       kubectl apply -f k8s/namespace.yaml
       kubectl apply -f k8s/configmap.yaml

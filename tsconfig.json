@@ -17,10 +17,6 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
-    "moduleResolution": "node",
-    "esModuleInterop": true,
-    "allowJs": true,
-    "resolveJsonModule": true,
     "plugins": [
       {
         "transform": "typia/lib/transform"
@@ -54,7 +50,5 @@
         "transform": "@nestia/sdk/lib/transform"
       }
     ]
-  },
-  "include": ["src/**/*", "generated/**/*"],
-  "exclude": ["node_modules", "dist"]
+  }
 }

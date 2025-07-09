@@ -6,13 +6,12 @@
   "private": true,
   "license": "UNLICENSED",
   "engines": {
-    "node": ">=22.0.0",
-    "npm": ">=10.0.0"
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   },
   "scripts": {
-    "prebuild": "npx prisma generate",
     "build": "nest build",
-    "build:safe": "npm run prebuild && nest build",
+    "build:safe": "nest build || (echo 'Build failed, trying with legacy peer deps' && npm install --legacy-peer-deps && nest build)",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -26,11 +25,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prepare": "npx ts-patch install || echo 'ts-patch install failed, continuing...'",
     "swagger:generate": "nestia swagger",
-    "swagger:generate:safe": "nestia swagger || echo 'Swagger generation failed'",
     "sdk:generate": "nestia sdk",
-    "swagger:merge": "node ./generated/merge-swagger.js",
-    "prisma:generate": "npx prisma generate",
-    "prisma:migrate": "npx prisma migrate deploy"
+    "swagger:merge": "node ./generated/merge-swagger.js"
   },
   "dependencies": {
     "@nestia/core": "^7.0.0",

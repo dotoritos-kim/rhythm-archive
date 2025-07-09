@@ -31,9 +31,6 @@ outputArtifacts:
   - name: output-oci-oke-deployment
     type: BINARY
     location: k8s/
-  - name: image-definitions
-    type: BINARY
-    location: imageDefinitions.json
 
 steps:
   - type: Command
@@ -46,65 +43,21 @@ steps:
       echo $CONTEXT_PATH
 
   - type: Command
-    name: 'Install Node.js 22 with NVM'
-    timeoutInSeconds: 300
-    command: |
-      echo "Installing NVM..."
-      curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-      export NVM_DIR="$HOME/.nvm"
-      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-      [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-      echo "NVM installed successfully"
-      echo "Installing Node.js 22..."
-      nvm install 22
-      nvm use 22
-      nvm alias default 22
-      echo "Node.js version:"
-      node --version
-      echo "npm version:"
-      npm --version
-      echo "Node.js 22 installed successfully with NVM"
-
-  - type: Command
     name: 'Install Dependencies'
     timeoutInSeconds: 300
     command: |
-      echo "Loading NVM environment..."
-      export NVM_DIR="$HOME/.nvm"
-      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-      nvm use 22
-      echo "Installing dependencies with Node.js 22..."
+      echo "Checking Node.js version..."
+      node --version
+      npm --version
+      echo "Cleaning npm cache..."
       npm cache clean --force
       echo "Installing Node.js dependencies..."
-      npm install --legacy-peer-deps
+      npm ci --legacy-peer-deps --verbose || npm install --legacy-peer-deps --verbose
       echo "Verifying node_modules..."
       ls -la node_modules/@nestjs/
       echo "Installing global packages..."
       npm install -g @nestjs/cli
       npm install -g nestia
-      npm install -g typescript
-      npm install -g ts-node
-      npm install -g tsconfig-paths
-      npm install -g prettier
-      npm install -g eslint
-      npm install -g prisma
-      npm install -g ts-patch
-      npm install -g jest
-      npm install -g @swc/cli
-      npm install -g @swc/core
-      echo "Global packages installed successfully"
-      echo "TypeScript version:"
-      tsc --version
-      echo "NestJS CLI version:"
-      nest --version
-      echo "Prisma version:"
-      prisma --version
-      echo "Jest version:"
-      jest --version
-      echo "Prettier version:"
-      prettier --version
-      echo "ESLint version:"
-      eslint --version
       echo "Generating Prisma client..."
       npx prisma generate || echo "Prisma generate failed, continuing..."
       echo "Dependencies installed successfully"
@@ -113,10 +66,6 @@ steps:
     name: 'Run Tests'
     timeoutInSeconds: 300
     command: |
-      echo "Loading NVM environment..."
-      export NVM_DIR="$HOME/.nvm"
-      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-      nvm use 22
       echo "Running application tests (optional - will continue even if tests fail)..."
       npm run test || echo "Tests failed but continuing with build..."
       echo "Tests completed"
@@ -125,10 +74,6 @@ steps:
     name: 'Build Application'
     timeoutInSeconds: 600
     command: |
-      echo "Loading NVM environment..."
-      export NVM_DIR="$HOME/.nvm"
-      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-      nvm use 22
       echo "Verifying dependencies before build..."
       ls -la node_modules/@nestjs/common || echo "NestJS common not found, reinstalling..."
       ls -la node_modules/@nestjs/swagger || echo "NestJS swagger not found, reinstalling..."
@@ -140,89 +85,107 @@ steps:
     name: 'Generate Swagger Documentation'
     timeoutInSeconds: 120
     command: |
-      echo "Loading NVM environment..."
-      export NVM_DIR="$HOME/.nvm"
-      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-      nvm use 22
       echo "Generating Swagger documentation..."
-      npm run swagger:generate:safe || npm run swagger:generate || (echo "Swagger generation failed, trying alternative method..." && npx nestia swagger || echo "All Swagger generation methods failed, continuing...")
+      npm run swagger:generate || echo "Swagger generation failed, continuing..."
       echo "Swagger documentation generation completed"
 
   - type: Command
     name: 'Define Image Tag - Commit ID'
     timeoutInSeconds: 30
     command: |
-      COMMIT_ID=`echo ${OCI_TRIGGER_COMMIT_HASH} | cut -c 1-7`
-      BUILDRUN_HASH=`echo ${OCI_BUILD_RUN_ID} | rev | cut -c 1-7`
-      [ -z "$COMMIT_ID" ] && TAG=$BUILDRUN_HASH || TAG=$COMMIT_ID
-      echo "TAG: $TAG"
-      echo "BUILDRUN_HASH: $BUILDRUN_HASH"
-      echo "COMMIT_ID: $COMMIT_ID"
+      if [ -n "${OCI_TRIGGER_COMMIT_HASH}" ]; then
+        COMMIT_ID=$(echo "${OCI_TRIGGER_COMMIT_HASH}" | cut -c 1-7)
+        TAG=$COMMIT_ID
+      else
+        BUILDRUN_HASH=$(echo "${OCI_BUILD_RUN_ID}" | rev | cut -c 1-7)
+        TAG=$BUILDRUN_HASH
+      fi
+      echo "TAG set to: $TAG"
+      export TAG
 
   - type: Command
     name: 'Define Image Path'
     timeoutInSeconds: 30
     command: |
-      TENANCY_NAMESPACE=`oci os ns get --query data --raw-output`
+      TENANCY_NAMESPACE=$(oci os ns get --query data --raw-output)
       REPO_NAME=$APP_NAME
       IMAGE_PATH=$OCI_RESOURCE_PRINCIPAL_REGION.ocir.io/$TENANCY_NAMESPACE/$REPO_NAME
-      echo "IMAGE_PATH: $IMAGE_PATH"
-      echo "TENANCY_NAMESPACE: $TENANCY_NAMESPACE"
-      echo "REPO_NAME: $REPO_NAME"
+      echo "IMAGE_PATH set to: $IMAGE_PATH"
+      export IMAGE_PATH
 
   - type: Command
     name: 'Build Container Image'
     timeoutInSeconds: 1200
     command: |
       cd ${OCI_PRIMARY_SOURCE_DIR}
-      echo "Building Docker image..."
-      echo "Image path: $IMAGE_PATH"
-      echo "Tag: $TAG"
-      docker build --pull --rm -t new-generated-image . --build-arg BUILDKIT_INLINE_CACHE=1 || echo "Docker build failed, retrying..."
-      docker build --pull --rm -t new-generated-image . --build-arg BUILDKIT_INLINE_CACHE=1
-      echo "Tagging Docker image..."
-      docker tag new-generated-image $IMAGE_PATH:$TAG
-      docker tag new-generated-image $IMAGE_PATH:latest
-      echo "Docker images:"
-      docker images | grep $REPO_NAME
-      echo "Docker image built successfully"
+      echo "Current directory: $(pwd)"
+      echo "Building Docker image with tag: $IMAGE_PATH:$TAG"
+      echo "Docker build context:"
+      ls -la
+
+      # Build the Docker image
+      docker build --pull --rm -t $IMAGE_PATH:$TAG . --build-arg BUILDKIT_INLINE_CACHE=1
+      BUILD_EXIT_CODE=$?
+      echo "Docker build exit code: $BUILD_EXIT_CODE"
+
+      if [ $BUILD_EXIT_CODE -eq 0 ]; then
+        docker tag $IMAGE_PATH:$TAG $IMAGE_PATH:latest
+        echo "Docker image built and tagged successfully"
+        echo "Available Docker images:"
+        docker images
+        echo "Checking for our image:"
+        docker images | grep "$IMAGE_PATH" || echo "Image not found in docker images list"
+      else
+        echo "Docker build failed with exit code: $BUILD_EXIT_CODE"
+        exit $BUILD_EXIT_CODE
+      fi
 
   - type: Command
     name: 'Push Container Image'
     timeoutInSeconds: 600
     command: |
-      echo "Pushing Docker images..."
-      echo "Pushing: $IMAGE_PATH:$TAG"
-      docker push $IMAGE_PATH:$TAG
-      echo "Pushing: $IMAGE_PATH:latest"
-      docker push $IMAGE_PATH:latest
-      echo "Container image pushed successfully"
+      echo "Verifying image exists before pushing..."
+      docker images | grep "$IMAGE_PATH" || (echo "Image not found, cannot push" && exit 1)
 
-  - type: Command
-    name: 'Verify Image for Artifact'
-    timeoutInSeconds: 60
-    command: |
-      echo "Verifying image for artifact storage..."
-      echo "Checking if image exists: $IMAGE_PATH:$TAG"
-      docker images | grep $REPO_NAME || echo "No local images found for $REPO_NAME"
-      echo "Image verification completed"
+      echo "Pushing Docker image: $IMAGE_PATH:$TAG"
+      docker push $IMAGE_PATH:$TAG
+      PUSH_EXIT_CODE=$?
+      echo "Push exit code for $TAG: $PUSH_EXIT_CODE"
+
+      echo "Pushing Docker image: $IMAGE_PATH:latest"
+      docker push $IMAGE_PATH:latest
+      LATEST_PUSH_EXIT_CODE=$?
+      echo "Push exit code for latest: $LATEST_PUSH_EXIT_CODE"
+
+      if [ $PUSH_EXIT_CODE -eq 0 ] && [ $LATEST_PUSH_EXIT_CODE -eq 0 ]; then
+        echo "Container images pushed successfully"
+      else
+        echo "Failed to push one or more images"
+        exit 1
+      fi
 
   - type: Command
     name: 'Prepare Kubernetes Manifests'
     timeoutInSeconds: 60
     command: |
       echo "Preparing Kubernetes manifests for artifact repository..."
-      # Update image tag in deployment.yaml
-      sed -i "s|us-ashburn-1.ocir.io/your-tenancy-namespace/rhythm-archive:latest|$IMAGE_PATH:$TAG|g" k8s/deployment.yaml
-      echo "Kubernetes manifests prepared successfully"
+      echo "Current IMAGE_PATH: $IMAGE_PATH"
+      echo "Current TAG: $TAG"
 
-  - type: Command
-    name: 'Create Artifact Files'
-    timeoutInSeconds: 30
-    command: |
-      echo "Creating artifact files..."
-      # Create image definitions file for artifact
-      echo "{\"ImageURI\":\"$IMAGE_PATH:$TAG\"}" > imageDefinitions.json
-      echo "Image definitions file created:"
-      cat imageDefinitions.json
-      echo "Artifact files created successfully"
+      # Check if k8s directory exists
+      if [ ! -d "k8s" ]; then
+        echo "k8s directory not found, creating it..."
+        mkdir -p k8s
+      fi
+
+      # Update image tag in deployment.yaml
+      if [ -f "k8s/deployment.yaml" ]; then
+        echo "Updating deployment.yaml with image: $IMAGE_PATH:$TAG"
+        sed -i "s|us-ashburn-1.ocir.io/your-tenancy-namespace/rhythm-archive:latest|$IMAGE_PATH:$TAG|g" k8s/deployment.yaml
+        echo "Updated deployment.yaml content:"
+        grep "image:" k8s/deployment.yaml
+      else
+        echo "Warning: k8s/deployment.yaml not found"
+      fi
+
+      echo "Kubernetes manifests prepared successfully"
