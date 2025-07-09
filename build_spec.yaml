@@ -185,7 +185,7 @@ steps:
       echo "Image path: $IMAGE_PATH"
       echo "Tag: $TAG"
       echo "Building with direct tag..."
-      docker build --pull --rm -t $IMAGE_PATH:$TAG . --build-arg BUILDKIT_INLINE_CACHE=1
+      docker build --pull --no-cache --rm -t $IMAGE_PATH:$TAG . --build-arg BUILDKIT_INLINE_CACHE=1
       BUILD_EXIT_CODE=$?
       echo "Docker build exit code: $BUILD_EXIT_CODE"
 

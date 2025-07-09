@@ -31,6 +31,16 @@ RUN npm run build:safe || npm run build
 # Generate Swagger documentation
 RUN npm run swagger:generate:safe || npm run swagger:generate || echo "Swagger generation failed, continuing..."
 
+# Ensure generated directory exists even if swagger generation failed
+RUN mkdir -p /app/generated
+
+# Verify build outputs
+RUN echo "Verifying build outputs..." && \
+    ls -la /app/dist && \
+    ls -la /app/node_modules && \
+    ls -la /app/generated && \
+    echo "Build verification completed"
+
 # Production stage
 FROM node:22-alpine AS production
 
@@ -52,14 +62,15 @@ RUN npm cache clean --force
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 
 # Copy Prisma files
 COPY --from=builder /app/prisma ./prisma
+
+# Copy node_modules from builder (only .prisma needed)
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Copy generated Swagger documentation
+# Copy generated files (if they exist)
 COPY --from=builder /app/generated ./generated
 
 # Create uploads directory
