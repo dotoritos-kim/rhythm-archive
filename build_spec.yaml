@@ -4,15 +4,10 @@ timeoutInSeconds: 6000
 runAs: root
 shell: bash
 env:
-  # these are local variables to the build config
   variables:
     defaultAppName: 'rhythm-archive'
     defaultContextPath: '/'
-  # the value of a vaultVariable is the secret-id (in OCI ID format) stored in the OCI Vault service
-  # you can then access the value of that secret in your build_spec.yaml commands
   vaultVariables:
-  # exportedVariables are made available to use as parameters in sucessor Build Pipeline stages
-  # For this Build to run, the Build Pipeline needs to have a BUILDRUN_HASH parameter set
   exportedVariables:
     - BUILDRUN_HASH
     - APP_NAME
@@ -21,8 +16,6 @@ env:
     - CONTEXT_PATH
     - OCI_AUTH_TOKEN
 
-# Its a native way to fetch artifacts from external or artifact repo or a file path to use before a stage.
-# More about buildspec formats - https://docs.oracle.com/en-us/iaas/Content/devops/using/build_specs.htm
 inputArtifacts:
 
 outputArtifacts:
@@ -177,33 +170,51 @@ steps:
       echo "TENANCY_NAMESPACE: $TENANCY_NAMESPACE"
       echo "REPO_NAME: $REPO_NAME"
 
-    - type: Command
+  - type: Command
     name: 'Login to OCI Container Registry with Auth Token'
     timeoutInSeconds: 60
     command: |
       echo "Logging into OCI Container Registry with Auth Token..."
       echo "Registry: $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
       echo "Tenancy Namespace: $TENANCY_NAMESPACE"
-      
+
+      # OCI CLI 정보 확인
+      echo "OCI CLI user info:"
+      oci iam user list --query 'data[0].name' --raw-output 2>/dev/null || echo "Cannot get user info"
+
       # Auth Token을 사용한 Docker 로그인
-      # 주의: 실제 환경에서는 Auth Token을 OCI Vault에 저장해서 사용하세요
-      
-      # 방법 1: 환경변수에서 Auth Token 사용 (권장)
       if [ -n "$OCI_AUTH_TOKEN" ]; then
-        echo "Using Auth Token from environment variable..."
-        echo "$OCI_AUTH_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username $TENANCY_NAMESPACE/oracleidentitycloudservice --password-stdin
+        echo "Auth Token found, attempting Docker login..."
+        echo "Username format: $TENANCY_NAMESPACE/\$OCI_USER_NAME"
+        
+        # 사용자 이름 확인
+        OCI_USER_NAME=$(oci iam user list --query 'data[0].name' --raw-output 2>/dev/null || echo "oracleidentitycloudservice")
+        
+        echo "Using username: $TENANCY_NAMESPACE/$OCI_USER_NAME"
+        echo "$OCI_AUTH_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/$OCI_USER_NAME" --password-stdin
         LOGIN_RESULT=$?
+        
         if [ $LOGIN_RESULT -eq 0 ]; then
-          echo "Docker login successful with Auth Token"
+          echo "✓ Docker login successful with Auth Token"
         else
-          echo "Docker login failed with Auth Token"
+          echo "✗ Docker login failed with Auth Token (exit code: $LOGIN_RESULT)"
+          echo "Trying alternative username format..."
+          echo "$OCI_AUTH_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/oracleidentitycloudservice" --password-stdin
+          ALT_LOGIN_RESULT=$?
+          if [ $ALT_LOGIN_RESULT -eq 0 ]; then
+            echo "✓ Docker login successful with alternative username"
+          else
+            echo "✗ All Docker login attempts failed"
+            exit 1
+          fi
         fi
       else
-        echo "Warning: OCI_AUTH_TOKEN environment variable not set"
-        echo "Please set OCI_AUTH_TOKEN in your build pipeline parameters"
+        echo "✗ ERROR: OCI_AUTH_TOKEN environment variable not set"
+        echo "Please add OCI_AUTH_TOKEN parameter to your build pipeline"
+        exit 1
       fi
-      
-      echo "Registry login completed"
+
+      echo "Registry login completed successfully"
 
   - type: Command
     name: 'Build Container Image'
