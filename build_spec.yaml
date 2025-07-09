@@ -163,12 +163,14 @@ steps:
     name: 'Define Image Path'
     timeoutInSeconds: 30
     command: |
-      TENANCY_NAMESPACE=`oci os ns get --query data --raw-output`
+      # Get tenancy namespace with fallback
+      TENANCY_NAMESPACE=$(oci os ns get --query data --raw-output 2>/dev/null || echo "cnr9rzehbbjk")
       REPO_NAME=$APP_NAME
       IMAGE_PATH=$OCI_RESOURCE_PRINCIPAL_REGION.ocir.io/$TENANCY_NAMESPACE/$REPO_NAME
       echo "IMAGE_PATH: $IMAGE_PATH"
       echo "TENANCY_NAMESPACE: $TENANCY_NAMESPACE"
       echo "REPO_NAME: $REPO_NAME"
+      echo "OCI_RESOURCE_PRINCIPAL_REGION: $OCI_RESOURCE_PRINCIPAL_REGION"
 
   - type: Command
     name: 'Login to OCI Container Registry with Auth Token'
@@ -185,12 +187,16 @@ steps:
       # Auth Token을 사용한 Docker 로그인
       if [ -n "$OCI_AUTH_TOKEN" ]; then
         echo "Auth Token found, attempting Docker login..."
+        echo "Auth Token length: ${#OCI_AUTH_TOKEN}"
         echo "Username format: $TENANCY_NAMESPACE/\$OCI_USER_NAME"
         
         # 사용자 이름 확인
         OCI_USER_NAME=$(oci iam user list --query 'data[0].name' --raw-output 2>/dev/null || echo "oracleidentitycloudservice")
         
         echo "Using username: $TENANCY_NAMESPACE/$OCI_USER_NAME"
+        echo "Registry: $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
+        
+        # Docker 로그인 시도
         echo "$OCI_AUTH_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/$OCI_USER_NAME" --password-stdin
         LOGIN_RESULT=$?
         
