@@ -62,10 +62,10 @@ export class OAuth2Controller {
     @Query() query: OAuth2AuthorizeQueryDto,
     @Req() req: Request,
     @Res() res: Response,
-  ) {
+  ): Promise<void> {
     // TODO: 인증된 사용자라면 승인 화면, 아니면 로그인 화면으로 리다이렉트
     // 실제 구현은 OAuth2Service에서 처리
-    return res.json({ message: 'OAuth2 Authorize Endpoint', query });
+    res.json({ message: 'OAuth2 Authorize Endpoint', query });
   }
 
   /**
@@ -137,9 +137,12 @@ export class OAuth2Controller {
     description: '인증 실패',
   })
   @Post('token')
-  async token(@Body() body: OAuth2TokenDto, @Res() res: Response) {
+  async token(
+    @Body() body: OAuth2TokenDto,
+    @Res() res: Response,
+  ): Promise<void> {
     // TODO: grant_type, code 등 파라미터 검증 및 토큰 발급
     // 실제 구현은 OAuth2Service에서 처리
-    return res.json({ message: 'OAuth2 Token Endpoint', body });
+    res.json({ message: 'OAuth2 Token Endpoint', body });
   }
 }

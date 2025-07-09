@@ -1,7 +1,11 @@
 export default {
   input: {
     include: ['src/**/*.controller.ts'],
-    exclude: ['src/**/*.spec.ts', 'src/**/*.test.ts'],
+    exclude: [
+      'src/**/*.spec.ts',
+      'src/**/*.test.ts',
+      'src/auth/oauth2.controller.ts', // OAuth2 컨트롤러 제외 (RegExp 오류 방지)
+    ],
   },
   output: 'generated',
   swagger: {

@@ -9,7 +9,8 @@ COPY nestia.config.ts ./
 COPY tsconfig*.json ./
 
 # Install dependencies (including dev dependencies for build)
-RUN npm install --legacy-peer-deps || npm install --force --legacy-peer-deps
+# Skip prepare scripts during installation to avoid ts-patch issues
+RUN npm install --legacy-peer-deps --ignore-scripts || npm install --force --legacy-peer-deps --ignore-scripts
 RUN npm cache clean --force
 
 # Copy source code
@@ -46,7 +47,7 @@ RUN adduser -S nestjs -u 1001
 COPY package*.json ./
 
 # Install only production dependencies
-RUN npm install --only=production --legacy-peer-deps || npm install --only=production --force --legacy-peer-deps
+RUN npm install --only=production --legacy-peer-deps --ignore-scripts || npm install --only=production --force --legacy-peer-deps --ignore-scripts
 RUN npm cache clean --force
 
 # Copy built application
