@@ -14,7 +14,7 @@ env:
     - IMAGE_PATH
     - TAG
     - CONTEXT_PATH
-    - OCI_AUTH_TOKEN
+    - AUTH_TOKEN
 
 inputArtifacts:
 
@@ -185,9 +185,9 @@ steps:
       oci iam user list --query 'data[0].name' --raw-output 2>/dev/null || echo "Cannot get user info"
 
       # Auth Token을 사용한 Docker 로그인
-      if [ -n "$OCI_AUTH_TOKEN" ]; then
+      if [ -n "$AUTH_TOKEN" ]; then
         echo "Auth Token found, attempting Docker login..."
-        echo "Auth Token length: ${#OCI_AUTH_TOKEN}"
+        echo "Auth Token length: ${#AUTH_TOKEN}"
         echo "Username format: $TENANCY_NAMESPACE/\$OCI_USER_NAME"
         
         # 사용자 이름 확인
@@ -197,7 +197,7 @@ steps:
         echo "Registry: $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
         
         # Docker 로그인 시도
-        echo "$OCI_AUTH_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/$OCI_USER_NAME" --password-stdin
+        echo "$AUTH_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/$OCI_USER_NAME" --password-stdin
         LOGIN_RESULT=$?
         
         if [ $LOGIN_RESULT -eq 0 ]; then
@@ -205,7 +205,7 @@ steps:
         else
           echo "✗ Docker login failed with Auth Token (exit code: $LOGIN_RESULT)"
           echo "Trying alternative username format..."
-          echo "$OCI_AUTH_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/oracleidentitycloudservice" --password-stdin
+          echo "$AUTH_TOKEN" | docker login $OCI_RESOURCE_PRINCIPAL_REGION.ocir.io --username "$TENANCY_NAMESPACE/oracleidentitycloudservice" --password-stdin
           ALT_LOGIN_RESULT=$?
           if [ $ALT_LOGIN_RESULT -eq 0 ]; then
             echo "✓ Docker login successful with alternative username"
@@ -215,8 +215,8 @@ steps:
           fi
         fi
       else
-        echo "✗ ERROR: OCI_AUTH_TOKEN environment variable not set"
-        echo "Please add OCI_AUTH_TOKEN parameter to your build pipeline"
+        echo "✗ ERROR: AUTH_TOKEN environment variable not set"
+        echo "Please add AUTH_TOKEN parameter to your build pipeline"
         exit 1
       fi
 
