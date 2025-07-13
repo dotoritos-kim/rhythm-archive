@@ -14,7 +14,7 @@ env:
 
 inputArtifacts:
   - name: output-image
-    type: DOCKER_IMAGE
+    type: GENERIC_ARTIFACT
   - name: output-oci-oke-deployment
     type: GENERIC_ARTIFACT
 

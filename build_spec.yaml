@@ -24,9 +24,8 @@ inputArtifacts:
 
 outputArtifacts:
   - name: output-image
-    type: DOCKER_IMAGE
-    # 실제 푸시된 이미지를 참조하도록 동적 태그 사용
-    location: ${IMAGE_PATH}:${TAG}
+    type: GENERIC_ARTIFACT
+    location: imageDefinitions.json
   - name: image-definitions
     type: BINARY
     location: imageDefinitions.json
