@@ -25,9 +25,8 @@ inputArtifacts:
 outputArtifacts:
   - name: output-image
     type: DOCKER_IMAGE
-    # Docker 이미지는 이미 레지스트리에 푸시되었으므로 레지스트리 경로 사용
-    # OCI DevOps는 actual pushed image location을 자동으로 감지
-    location: ap-seoul-1.ocir.io/cnr9rzehbbjk/rhythm-archive
+    # 빌드 과정에서 생성된 실제 이미지 경로 사용
+    location: ${IMAGE_PATH}:${TAG}
   - name: image-definitions
     type: BINARY
     location: imageDefinitions.json
@@ -206,20 +205,14 @@ steps:
     name: 'Define Image Path'
     timeoutInSeconds: 30
     command: |
-      # Get tenancy namespace with multiple fallback options
-      TENANCY_NAMESPACE=$(oci os ns get --query data --raw-output 2>/dev/null || echo "")
-      if [ -z "$TENANCY_NAMESPACE" ]; then
-        echo "OCI CLI failed to get namespace, trying alternative methods..."
-        # Try to get from environment variable or use hardcoded fallback
-        TENANCY_NAMESPACE=${OCI_TENANCY_NAMESPACE:-"cnr9rzehbbjk"}
-        echo "Using fallback namespace: $TENANCY_NAMESPACE"
-      fi
+      # 명시적으로 올바른 테넌시 네임스페이스 설정
+      TENANCY_NAMESPACE="cnr9rzehbbjk"
+      echo "Using fixed tenancy namespace: $TENANCY_NAMESPACE"
 
-      # Ensure TENANCY_NAMESPACE is not empty
-      if [ -z "$TENANCY_NAMESPACE" ]; then
-        echo "ERROR: TENANCY_NAMESPACE is still empty, using hardcoded value"
-        TENANCY_NAMESPACE="cnr9rzehbbjk"
-      fi
+      # 환경 변수 확인 (디버깅용)
+      echo "DEBUG: OCI_TENANCY_NAMESPACE environment variable: ${OCI_TENANCY_NAMESPACE:-'not set'}"
+      echo "DEBUG: Result from oci os ns get:"
+      oci os ns get --query data --raw-output 2>/dev/null || echo "Failed to get namespace from OCI CLI"
 
       REPO_NAME=$APP_NAME
       # Public repository 사용 (선택사항)
@@ -235,6 +228,27 @@ steps:
       echo "TENANCY_NAMESPACE: $TENANCY_NAMESPACE"
       echo "REPO_NAME: $REPO_NAME"
       echo "OCI_RESOURCE_PRINCIPAL_REGION: $OCI_RESOURCE_PRINCIPAL_REGION"
+
+  - type: Command
+    name: 'Setup Container Registry Repository'
+    timeoutInSeconds: 60
+    command: |
+      echo "=== Setting up Container Registry Repository ==="
+      echo "Repository: $IMAGE_PATH"
+      echo "Tenancy Namespace: $TENANCY_NAMESPACE"
+      echo "Repository Name: $REPO_NAME"
+
+      # Container Registry 리포지토리 생성 (존재하지 않는 경우)
+      echo "Creating Container Registry repository if it doesn't exist..."
+      oci artifacts container repository create \
+        --display-name "$REPO_NAME" \
+        --compartment-id "$OCI_RESOURCE_PRINCIPAL_COMPARTMENT_ID" \
+        --is-public false \
+        --readme-format "text/plain" \
+        --readme-content "Rhythm Archive Docker Repository" \
+        2>/dev/null || echo "Repository already exists or creation failed (this is normal)"
+
+      echo "Container Registry repository setup completed"
 
   - type: Command
     name: 'Login to OCI Container Registry with Auth Token'
@@ -254,7 +268,9 @@ steps:
         
         # 명시적으로 OCI Container Registry URL 사용
         REGISTRY_URL="$OCI_RESOURCE_PRINCIPAL_REGION.ocir.io"
-        USERNAME="$TENANCY_NAMESPACE/dotoritos@makeworks.net"
+        # 올바른 테넌시 네임스페이스 사용
+        FIXED_TENANCY_NAMESPACE="cnr9rzehbbjk"
+        USERNAME="$FIXED_TENANCY_NAMESPACE/dotoritos@makeworks.net"
         
         echo "Registry URL: $REGISTRY_URL"
         echo "Username: $USERNAME"
@@ -337,7 +353,7 @@ steps:
       fi
 
       if [ -z "$IMAGE_PATH" ]; then
-        TENANCY_NAMESPACE=${OCI_TENANCY_NAMESPACE:-"cnr9rzehbbjk"}
+        TENANCY_NAMESPACE="cnr9rzehbbjk"
         APP_NAME=${defaultAppName:-"rhythm-archive"}
         IMAGE_PATH=$OCI_RESOURCE_PRINCIPAL_REGION.ocir.io/$TENANCY_NAMESPACE/$APP_NAME
         echo "Reconstructed IMAGE_PATH: $IMAGE_PATH"
@@ -408,7 +424,7 @@ steps:
       fi
 
       if [ -z "$IMAGE_PATH" ]; then
-        TENANCY_NAMESPACE=${OCI_TENANCY_NAMESPACE:-"cnr9rzehbbjk"}
+        TENANCY_NAMESPACE="cnr9rzehbbjk"
         APP_NAME=${defaultAppName:-"rhythm-archive"}
         IMAGE_PATH=$OCI_RESOURCE_PRINCIPAL_REGION.ocir.io/$TENANCY_NAMESPACE/$APP_NAME
         echo "Reconstructed IMAGE_PATH: $IMAGE_PATH"
