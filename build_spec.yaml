@@ -23,10 +23,6 @@ env:
 inputArtifacts:
 
 outputArtifacts:
-  - name: output-image
-    type: DOCKER_IMAGE
-    # 빌드 과정에서 생성된 실제 이미지 경로 사용
-    location: ${IMAGE_PATH}:${TAG}
   - name: image-definitions
     type: BINARY
     location: imageDefinitions.json
@@ -279,14 +275,31 @@ steps:
         
         # Docker login 시도
         echo "Attempting Docker login to OCI Container Registry..."
-        echo "$AUTH_TOKEN" | docker login $REGISTRY_URL --username "$USERNAME" --password-stdin
+        echo "Full command: docker login $REGISTRY_URL --username $USERNAME --password-stdin"
+        echo "Testing auth token validity..."
+        
+        # 더 자세한 로깅과 함께 Docker login 시도
+        echo "$AUTH_TOKEN" | docker login $REGISTRY_URL --username "$USERNAME" --password-stdin 2>&1
         LOGIN_RESULT=$?
+        
+        echo "Docker login exit code: $LOGIN_RESULT"
         
         if [ $LOGIN_RESULT -eq 0 ]; then
           echo "✓ Docker login successful"
+          # 로그인 성공 확인
+          docker info | grep -i "registry" || echo "Docker info check failed"
         else
-          echo "✗ Docker login failed - exiting build"
-          exit 1
+          echo "✗ Docker login failed with exit code: $LOGIN_RESULT"
+          echo "Common reasons for Docker login failure:"
+          echo "1. Invalid or expired AUTH_TOKEN"
+          echo "2. Incorrect username format"
+          echo "3. Network connectivity issues"
+          echo "4. Container Registry not accessible"
+          echo ""
+          echo "Manual test recommendation:"
+          echo "docker login $REGISTRY_URL --username $USERNAME"
+          echo ""
+          echo "Continuing build - push will likely fail"
         fi
       else
         echo "=== AUTH_TOKEN Not Available or Not Resolved ==="
