@@ -24,7 +24,7 @@ inputArtifacts:
 
 outputArtifacts:
   - name: output-image
-    type: GENERIC_ARTIFACT
+    type: BINARY
     location: imageDefinitions.json
   - name: image-definitions
     type: BINARY

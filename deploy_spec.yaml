@@ -14,7 +14,7 @@ env:
 
 inputArtifacts:
   - name: output-image
-    type: GENERIC_ARTIFACT
+    type: BINARY
   - name: output-oci-oke-deployment
     type: GENERIC_ARTIFACT
 
